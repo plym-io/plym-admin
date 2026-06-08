@@ -1,0 +1,221 @@
+@import 'tailwindcss';
+
+/* ------------------------------------------------------------------ *
+ * plym design tokens — mirrors the rendered blog's theme.
+ * ------------------------------------------------------------------ */
+@theme {
+  --color-bg: #ffffff;
+  --color-bg-subtle: #fafaf7;
+  --color-bg-muted: #f4f4f1;
+  --color-border: #ececec;
+  --color-border-strong: #d9d9d9;
+  --color-fg: #1a1a1a;
+  --color-fg-muted: #6b6b6b;
+  --color-fg-subtle: #9a9a9a;
+  --color-accent: #e9793a;
+  --color-accent-soft: rgba(233, 121, 58, 0.12);
+
+  --color-success: #2f7a3e;
+  --color-warning: #c97a16;
+  --color-danger: #c4321a;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Merriweather', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.06);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --default-transition-duration: 220ms;
+  --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-fg);
+  }
+
+  /* Custom focus ring — accent at 30% opacity, never the UA default. */
+  :focus-visible {
+    outline: 2px solid rgba(233, 121, 58, 0.3);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Tabular numerals helper for meta columns. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  /* Thin, restrained scrollbars. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: 999px;
+    border: 3px solid var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-fg-subtle);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Editorial preview — mirrors plym's rendered blog typography.
+ * Used by the editor preview pane when the live HTML isn't styled.
+ * ------------------------------------------------------------------ */
+.prose-plym {
+  font-family: var(--font-serif);
+  color: var(--color-fg);
+  line-height: 1.75;
+  font-size: 17px;
+}
+.prose-plym h1,
+.prose-plym h2,
+.prose-plym h3,
+.prose-plym h4 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 1.6em 0 0.5em;
+  color: var(--color-fg);
+}
+.prose-plym h1 {
+  font-size: 2em;
+}
+.prose-plym h2 {
+  font-size: 1.5em;
+}
+.prose-plym h3 {
+  font-size: 1.2em;
+}
+.prose-plym p,
+.prose-plym ul,
+.prose-plym ol,
+.prose-plym blockquote {
+  margin: 0 0 1em;
+}
+.prose-plym a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-plym img {
+  max-width: 100%;
+  border-radius: var(--radius-lg);
+  margin: 1.5em 0;
+}
+.prose-plym blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 1em;
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+.prose-plym code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--color-bg-muted);
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-sm);
+}
+.prose-plym pre {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--color-bg-muted);
+  padding: 1em 1.2em;
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  line-height: 1.6;
+}
+.prose-plym pre code {
+  background: none;
+  padding: 0;
+}
+.prose-plym ul,
+.prose-plym ol {
+  padding-left: 1.4em;
+}
+.prose-plym hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 2em 0;
+}
+
+@keyframes plym-shake {
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+  20%,
+  80% {
+    transform: translateX(2px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-4px);
+  }
+  40%,
+  60% {
+    transform: translateX(4px);
+  }
+}
+.animate-shake {
+  animation: plym-shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes plym-ring-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-accent-soft);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(233, 121, 58, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(233, 121, 58, 0);
+  }
+}
+.animate-ring-pulse {
+  animation: plym-ring-pulse 1s var(--ease-out) 1;
+}

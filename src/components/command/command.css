@@ -1,0 +1,40 @@
+[cmdk-group-heading] {
+  padding: 6px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-fg-subtle);
+}
+
+[cmdk-item] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin: 1px 0;
+  font-size: 14px;
+  color: var(--color-fg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  user-select: none;
+}
+
+[cmdk-item] svg {
+  color: var(--color-fg-subtle);
+  flex-shrink: 0;
+}
+
+[cmdk-item][data-selected='true'] {
+  background: var(--color-accent-soft);
+}
+
+[cmdk-item][data-selected='true'] svg {
+  color: var(--color-accent);
+}
+
+[cmdk-item] > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
