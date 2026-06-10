@@ -1,5 +1,6 @@
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { Suspense, lazy } from 'react';
+import { adminBase } from '@/lib/base';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/layout/RequireAuth';
 import { RouteFallback } from '@/components/layout/RouteFallback';
@@ -39,7 +40,7 @@ const router = createBrowserRouter(
       ],
     },
   ],
-  { basename: '/admin' },
+  { basename: adminBase },
 );
 
 export function App() {

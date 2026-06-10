@@ -10,6 +10,7 @@ import {
   CloudCheck,
 } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
+import { apiBase } from '@/lib/base';
 import { isApiError } from '@/api/errors';
 import { usePostsStore } from '@/store/posts';
 import { useAutosave } from '@/hooks/use-autosave';
@@ -408,7 +409,7 @@ export default function PostEditor() {
             <button
               type="button"
               onClick={() =>
-                window.open(`/blog/${draft.slug}`, '_blank', 'noopener')
+                window.open(`${apiBase || '/blog'}/${draft.slug}`, '_blank', 'noopener')
               }
               title="Open post in a new tab"
               aria-label="Open post in a new tab"

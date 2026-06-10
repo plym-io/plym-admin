@@ -1,6 +1,7 @@
 import createClient, { type Middleware } from 'openapi-fetch';
 import type { paths } from './schema';
 import { useAuthStore } from '@/store/auth';
+import { adminBase, apiBase } from '@/lib/base';
 import { normalizeError, type ApiError } from './errors';
 
 const REFRESH_PATH = '/api/auth/refresh';
@@ -19,7 +20,7 @@ async function runRefresh(): Promise<boolean> {
     return false;
   }
   try {
-    const res = await fetch(REFRESH_PATH, {
+    const res = await fetch(`${apiBase}${REFRESH_PATH}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -67,9 +68,9 @@ const authMiddleware: Middleware = {
 
     const ok = await ensureRefresh();
     if (!ok) {
-      // Hard logout — let the router send the user to /admin/login.
+      // Hard logout — let the router send the user to the login screen.
       if (!location.pathname.endsWith('/login')) {
-        window.location.assign('/admin/login');
+        window.location.assign(`${adminBase}/login`);
       }
       return response;
     }
@@ -82,7 +83,7 @@ const authMiddleware: Middleware = {
   },
 };
 
-export const api = createClient<paths>({ baseUrl: '' });
+export const api = createClient<paths>({ baseUrl: apiBase });
 api.use(authMiddleware);
 
 /**

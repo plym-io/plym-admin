@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/store/auth';
+import { apiBase } from '@/lib/base';
 import type { MediaItem } from '@/types';
 import { normalizeError, type ApiError } from '@/api/errors';
 
@@ -15,7 +16,7 @@ export function uploadMedia(
     const form = new FormData();
     form.append('file', file);
 
-    xhr.open('POST', '/api/media');
+    xhr.open('POST', `${apiBase}/api/media`);
     const token = useAuthStore.getState().accessToken;
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 

@@ -41,8 +41,8 @@ const proxied = [
   '/health',
 ];
 
-export default defineConfig({
-  base: '/admin/',
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? './' : '/admin/',
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },
@@ -78,4 +78,4 @@ export default defineConfig({
     css: false,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
-});
+}));
