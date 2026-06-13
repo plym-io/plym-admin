@@ -84,10 +84,10 @@ export default function Login() {
         </div>
         <div className="absolute bottom-10 left-8 max-w-sm">
           <p className="font-serif text-2xl leading-snug text-fg">
-            Write fast. Publish faster.
+            plym helps you get your story the reach it deserves.
           </p>
           <p className="mt-2 text-sm text-fg-muted">
-            The admin for an opinionated, SEO-first CMS.
+            Modern CMS for the AI-native web.
           </p>
         </div>
       </div>

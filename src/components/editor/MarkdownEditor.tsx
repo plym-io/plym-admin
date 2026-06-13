@@ -6,7 +6,9 @@ import CodeMirror, {
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { EditorView as CMView } from '@codemirror/view';
+import { toast } from 'sonner';
 import { uploadMedia } from '@/lib/upload';
+import { isApiError } from '@/api/errors';
 import { useMediaStore } from '@/store/media';
 import type { MediaItem } from '@/types';
 import { SlashMenu } from './SlashMenu';
@@ -158,8 +160,9 @@ export function MarkdownEditor({ value, onChange, editorRef, onScroll }: Props) 
         const item = await uploadMedia(file);
         prepend(item);
         replaceInDoc(placeholder, `![${item.original_name ?? 'image'}](${item.url})`);
-      } catch {
+      } catch (e) {
         replaceInDoc(placeholder, '![upload failed]()');
+        toast.error(isApiError(e) ? e.message : 'Upload failed');
       }
     },
     [getView, prepend, replaceInDoc],

@@ -36,6 +36,13 @@ export function uploadMedia(
             raw: xhr.responseText,
           } satisfies ApiError);
         }
+      } else if (xhr.status === 413) {
+        reject({
+          code: 'payload_too_large',
+          message: 'File size exceeds max allowed limit for media uploads.',
+          status: 413,
+          raw: xhr.responseText,
+        } satisfies ApiError);
       } else {
         const res = new Response(xhr.responseText, { status: xhr.status });
         reject(await normalizeError(res));
