@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from '@phosphor-icons/react';
 import { cn } from '@/lib/classnames';
@@ -31,7 +32,10 @@ export function Sheet({
 
   const isRight = side === 'right';
 
-  return (
+  // Portal to <body> so the fixed overlay escapes any parent stacking context
+  // (e.g. the TopBar's backdrop-blur, which would otherwise trap it below the
+  // page). React context still flows through the portal.
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -73,6 +77,7 @@ export function Sheet({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
