@@ -17,6 +17,7 @@ import { useAutosave } from '@/hooks/use-autosave';
 import { useShortcut } from '@/hooks/use-shortcut';
 import { slugify, relativeTime, hostname } from '@/lib/format';
 import type { Post, PostStatus } from '@/types';
+import type { components } from '@/api/schema';
 import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
 import { CoverWidget } from '@/components/editor/CoverWidget';
 import { TagsInput } from '@/components/editor/TagsInput';
@@ -93,6 +94,9 @@ export default function PostEditor() {
   // Last canonical value known to be persisted, so we only auto-refresh the
   // rendered file when canonical_url actually changes (FOLLOWUP §refresh).
   const savedCanonicalRef = useRef<string | null>(isNew ? null : null);
+  // Last slug known to be persisted — changing it moves the post's URL, so we
+  // re-render the file when it changes (mirrors the canonical refresh).
+  const savedSlugRef = useRef<string | null>(null);
 
   // Keep the title textarea sized to its content, including after load.
   useEffect(() => {
@@ -139,6 +143,7 @@ export default function PostEditor() {
         };
         draftRef.current = next;
         savedCanonicalRef.current = p.canonical_url ?? null;
+        savedSlugRef.current = p.slug;
         setDraft(next);
         setReadingTime(p.reading_time);
         setSlugTouched(true);
@@ -162,6 +167,7 @@ export default function PostEditor() {
       const effectiveSlug = d.slug || slugify(d.title);
       const canonicalChanged =
         (d.canonical_url ?? null) !== savedCanonicalRef.current;
+      const slugChanged = effectiveSlug !== savedSlugRef.current;
 
       try {
         if (postIdRef.current === null) {
@@ -183,6 +189,7 @@ export default function PostEditor() {
           postIdRef.current = created.id;
           hydratedIdRef.current = created.id; // we already hold this post's data
           savedCanonicalRef.current = created.canonical_url ?? null;
+          savedSlugRef.current = created.slug;
           setReadingTime(created.reading_time);
           syncList(created);
           // Swap /posts/new → /posts/:id in place. Same route, so the editor
@@ -192,24 +199,29 @@ export default function PostEditor() {
           const updated = await call(
             api.PATCH('/api/posts/{post_id}', {
               params: { path: { post_id: postIdRef.current } },
+              // `slug` isn't in the generated PostUpdate type yet (pending a
+              // backend release that accepts it on PATCH); cast until codegen
+              // picks it up.
               body: {
                 title: d.title,
+                slug: effectiveSlug,
                 content: d.content,
                 excerpt: d.excerpt || null,
                 cover: d.cover,
                 // null explicitly clears it; a string sets it.
                 canonical_url: d.canonical_url,
                 tags: d.tags,
-              },
+              } as components['schemas']['PostUpdate'] & { slug: string },
             }),
           );
           savedCanonicalRef.current = updated.canonical_url ?? null;
+          savedSlugRef.current = updated.slug;
           setReadingTime(updated.reading_time);
           syncList(updated);
 
-          // Auto-refresh the rendered file when the canonical URL changed, so
-          // <link rel="canonical"> on disk stays in step (FOLLOWUP §refresh).
-          if (canonicalChanged) {
+          // Auto-refresh the rendered file when the canonical URL or slug
+          // changed, so the file on disk stays in step (FOLLOWUP §refresh).
+          if (canonicalChanged || slugChanged) {
             await call(
               api.POST('/api/posts/{post_id}/refresh', {
                 params: { path: { post_id: postIdRef.current } },
@@ -267,9 +279,9 @@ export default function PostEditor() {
     [autosave, slugTouched],
   );
 
-  // ---- slug (its own endpoint behavior via PATCH not supported; uses create) -
-  // Slug isn't in PostUpdate, so it's only settable at create time. We keep the
-  // field editable to derive the create slug and to show conflicts inline.
+  // ---- slug ----------------------------------------------------------
+  // Editable at any time: on create it seeds PostCreate.slug; on an existing
+  // post an edit is sent via PATCH (see persist). Conflicts surface inline.
 
   // ---- status / publish ---------------------------------------------
   const setStatus = useCallback(
@@ -392,24 +404,22 @@ export default function PostEditor() {
           <span className="shrink-0">Slug:</span>
           <input
             value={draft.slug}
-            disabled={!isNew && postIdRef.current !== null}
             onChange={(e) => {
               setSlugTouched(true);
-              setDraft((d) => ({ ...d, slug: slugify(e.target.value) }));
+              update({ slug: slugify(e.target.value) });
             }}
-            title={!isNew ? 'Slug is fixed after creation' : 'Edit the slug'}
+            title="Edit the slug"
             className={cn(
               'rounded border border-transparent bg-transparent px-1.5 py-0.5 font-mono text-[13px] text-fg-muted outline-none transition-colors',
-              isNew && 'hover:border-border focus:border-accent',
+              'hover:border-border focus:border-accent',
               slugError && 'border-danger text-danger',
-              !isNew && 'cursor-default opacity-70',
             )}
           />
           {draft.slug && (
             <button
               type="button"
               onClick={() =>
-                window.open(`${apiBase || '/blog'}/${draft.slug}`, '_blank', 'noopener')
+                window.open(`${apiBase}/${draft.slug}`, '_blank', 'noopener')
               }
               title="Open post in a new tab"
               aria-label="Open post in a new tab"

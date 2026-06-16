@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Navigate } from 'react-router';
 import { toast } from 'sonner';
-import { Plus, Key } from '@phosphor-icons/react';
+import { Plus, Key, Prohibit, ArrowCounterClockwise } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import { useAuthStore } from '@/store/auth';
@@ -20,6 +19,12 @@ const ROLE_STYLE: Record<Role, string> = {
   editor: 'bg-bg-muted text-fg-muted',
   reader: 'bg-bg-muted text-fg-subtle',
 };
+
+type Tab = 'active' | 'deactivated';
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'deactivated', label: 'Deactivated' },
+];
 
 interface NewUser {
   email: string;
@@ -39,9 +44,12 @@ function initials(name: string) {
 
 export default function Users() {
   const me = useAuthStore((s) => s.user);
+  // Readers and editors can view this page; only admins get management actions.
+  const isAdmin = me?.role === 'administrator';
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [tab, setTab] = useState<Tab>('active');
 
   useEffect(() => {
     call(api.GET('/api/users', { params: { query: { page: 1, page_size: 200 } } }))
@@ -50,7 +58,14 @@ export default function Users() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (me && me.role !== 'administrator') return <Navigate to="/" replace />;
+  const deactivatedCount = useMemo(
+    () => users.filter((u) => !u.is_active).length,
+    [users],
+  );
+  const visible = useMemo(
+    () => users.filter((u) => (tab === 'active' ? u.is_active : !u.is_active)),
+    [users, tab],
+  );
 
   const resetPassword = async (user: User) => {
     const pw = crypto.randomUUID().slice(0, 12);
@@ -70,76 +85,164 @@ export default function Users() {
     }
   };
 
+  const deactivate = async (user: User) => {
+    try {
+      await call(
+        api.DELETE('/api/users/{user_id}/deactivate', {
+          params: { path: { user_id: user.id } },
+        }),
+      );
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, is_active: false } : u)),
+      );
+      toast.success(`${user.display_name} deactivated.`);
+    } catch (e) {
+      toast.error(isApiError(e) ? e.message : 'Could not deactivate user');
+    }
+  };
+
+  const reactivate = async (user: User) => {
+    try {
+      const updated = await call(
+        api.POST('/api/users/{user_id}/reactivate', {
+          params: { path: { user_id: user.id } },
+        }),
+      );
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? updated : u)));
+      toast.success(`${user.display_name} reactivated.`);
+    } catch (e) {
+      toast.error(isApiError(e) ? e.message : 'Could not reactivate user');
+    }
+  };
+
   return (
     <Page width="text">
       <PageHeader
         title="Users"
         description="People with access to this plym instance."
         actions={
-          <Button variant="accent" onClick={() => setCreating(true)}>
-            <Plus size={16} weight="bold" /> New user
-          </Button>
+          isAdmin ? (
+            <Button variant="accent" onClick={() => setCreating(true)}>
+              <Plus size={16} weight="bold" /> New user
+            </Button>
+          ) : undefined
         }
       />
 
+      <div className="mt-6 flex items-center gap-1 rounded-md bg-bg-muted p-0.5">
+        {TABS.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setTab(t.value)}
+            className={cn(
+              'rounded px-3 py-1 text-sm transition-colors',
+              tab === t.value
+                ? 'bg-bg text-fg shadow-xs'
+                : 'text-fg-muted hover:text-fg',
+            )}
+          >
+            {t.label}
+            {t.value === 'deactivated' && deactivatedCount > 0 && (
+              <span className="ml-1.5 text-fg-subtle">{deactivatedCount}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
-        <div className="mt-6 space-y-2">
+        <div className="mt-4 space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-14 w-full" />
           ))}
         </div>
+      ) : visible.length === 0 ? (
+        <p className="mt-10 text-center text-sm text-fg-muted">
+          {tab === 'deactivated'
+            ? 'No deactivated users.'
+            : 'No active users.'}
+        </p>
       ) : (
-      <div className="mt-6 divide-y divide-border rounded-lg border border-border">
-        {users.map((u) => (
-          <div
-            key={u.id}
-            className="group flex items-center gap-3 px-4 py-3"
-          >
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-bg-muted text-xs font-semibold text-fg-muted">
-              {initials(u.display_name)}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-fg">
-                {u.display_name}
-                {u.id === me?.id && (
-                  <span className="ml-2 text-xs font-normal text-fg-subtle">
-                    you
-                  </span>
-                )}
-              </p>
-              <p className="truncate text-xs text-fg-muted">{u.email}</p>
-            </div>
-            <span
+        <div className="mt-4 divide-y divide-border rounded-lg border border-border">
+          {visible.map((u) => (
+            <div
+              key={u.id}
               className={cn(
-                'rounded-pill px-2 py-0.5 text-xs font-medium capitalize',
-                ROLE_STYLE[u.role],
+                'group flex items-center gap-3 px-4 py-3',
+                !u.is_active && 'opacity-60',
               )}
             >
-              {u.role}
-            </span>
-            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <ConfirmButton
-                icon={Key}
-                label="Reset password"
-                question={`Reset ${u.display_name}'s password? A new one is generated and copied to your clipboard.`}
-                confirmLabel="Reset"
-                tone="danger"
-                stopPropagation={false}
-                onConfirm={() => void resetPassword(u)}
-              />
-              {/* Deactivate — not in the API yet (BRD §6.6). Affordance reserved:
-              <button title="Deactivate">…</button> */}
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-bg-muted text-xs font-semibold text-fg-muted">
+                {initials(u.display_name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-fg">
+                  {u.display_name}
+                  {u.id === me?.id && (
+                    <span className="ml-2 text-xs font-normal text-fg-subtle">
+                      you
+                    </span>
+                  )}
+                </p>
+                <p className="truncate text-xs text-fg-muted">{u.email}</p>
+              </div>
+              <span
+                className={cn(
+                  'rounded-pill px-2 py-0.5 text-xs font-medium capitalize',
+                  ROLE_STYLE[u.role],
+                )}
+              >
+                {u.role}
+              </span>
+              {isAdmin && (
+                <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  {u.is_active ? (
+                    <>
+                      <ConfirmButton
+                        icon={Key}
+                        label="Reset password"
+                        question={`Reset ${u.display_name}'s password? A new one is generated and copied to your clipboard.`}
+                        confirmLabel="Reset"
+                        tone="danger"
+                        stopPropagation={false}
+                        onConfirm={() => void resetPassword(u)}
+                      />
+                      {u.id !== me?.id && (
+                        <ConfirmButton
+                          icon={Prohibit}
+                          label="Deactivate"
+                          question={`Deactivate ${u.display_name}? They'll lose access until reactivated.`}
+                          confirmLabel="Deactivate"
+                          tone="danger"
+                          stopPropagation={false}
+                          onConfirm={() => void deactivate(u)}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      title="Reactivate"
+                      aria-label="Reactivate"
+                      onClick={() => void reactivate(u)}
+                      className="rounded-md p-1.5 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg"
+                    >
+                      <ArrowCounterClockwise size={16} />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
       )}
 
-      <NewUserSheet
-        open={creating}
-        onClose={() => setCreating(false)}
-        onCreated={(u) => setUsers((prev) => [u, ...prev])}
-      />
+      {isAdmin && (
+        <NewUserSheet
+          open={creating}
+          onClose={() => setCreating(false)}
+          onCreated={(u) => setUsers((prev) => [u, ...prev])}
+        />
+      )}
     </Page>
   );
 }

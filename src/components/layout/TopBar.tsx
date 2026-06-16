@@ -6,10 +6,12 @@ import {
   Sidebar as SidebarIcon,
   SignOut,
   Keyboard,
+  UserCircle,
 } from '@phosphor-icons/react';
 import { useUiStore } from '@/store/ui';
 import { useAuthStore } from '@/store/auth';
 import { Kbd } from '@/components/ui/kbd';
+import { ProfileSheet } from './ProfileSheet';
 import { cn } from '@/lib/classnames';
 
 function UserMenu() {
@@ -17,6 +19,7 @@ function UserMenu() {
   const clear = useAuthStore((s) => s.clear);
   const setShortcuts = useUiStore((s) => s.setShortcutsOpen);
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const initials = (user?.display_name ?? '?')
@@ -55,6 +58,16 @@ function UserMenu() {
             <button
               onMouseDown={(e) => {
                 e.preventDefault();
+                setProfileOpen(true);
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+            >
+              <UserCircle size={16} /> Edit profile
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
                 setShortcuts(true);
                 setOpen(false);
               }}
@@ -77,6 +90,7 @@ function UserMenu() {
           </motion.div>
         )}
       </AnimatePresence>
+      <ProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

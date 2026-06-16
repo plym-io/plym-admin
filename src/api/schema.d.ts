@@ -142,6 +142,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/users/{user_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deactivate User */
+        delete: operations["deactivate_user_api_users__user_id__deactivate_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{user_id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate User */
+        post: operations["reactivate_user_api_users__user_id__reactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/posts": {
         parameters: {
             query?: never;
@@ -300,74 +334,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/sitemap.xml": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Sitemap */
-        get: operations["sitemap_sitemap_xml_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/robots.txt": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Robots */
-        get: operations["robots_robots_txt_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Serve Index */
-        get: operations["serve_index__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/blog/{slug}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Serve Post */
-        get: operations["serve_post_blog__slug__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -422,7 +388,7 @@ export interface components {
             heading: string;
             /**
              * Body
-             * @default Inter
+             * @default Merriweather
              */
             body: string;
         };
@@ -454,38 +420,18 @@ export interface components {
              */
             public: boolean;
         };
-        /** LogEntry */
-        LogEntry: {
-            /** Id */
-            id: number;
-            /** Event */
-            event: string;
-            /** Actor Id */
-            actor_id?: number | null;
-            /** Target */
-            target?: string | null;
-            /** Payload */
-            payload?: {
-                [key: string]: unknown;
-            };
-            /** Audit */
-            audit: boolean;
+        /** InjectConfig */
+        InjectConfig: {
             /**
-             * Created At
-             * Format: date-time
+             * Head
+             * @default
              */
-            created_at: string;
-        };
-        /** LogPage */
-        LogPage: {
-            /** Items */
-            items: components["schemas"]["LogEntry"][];
-            /** Total */
-            total: number;
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
+            head: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -760,6 +706,11 @@ export interface components {
              */
             blog_prefix: string;
             /**
+             * Language
+             * @default en
+             */
+            language: string;
+            /**
              * Template
              * @default default
              */
@@ -773,6 +724,7 @@ export interface components {
             media?: components["schemas"]["MediaConfig"];
             http_cache?: components["schemas"]["HttpCacheConfig"];
             robots?: components["schemas"]["RobotsConfig"];
+            inject?: components["schemas"]["InjectConfig"];
             /** Logo */
             logo?: string | null;
             /** Favicon */
@@ -877,6 +829,39 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** LogEntry */
+        LogEntry: {
+            /** Id */
+            id: number;
+            /** Event */
+            event: string;
+            /** Actor Id */
+            actor_id?: number | null;
+            /** Target */
+            target?: string | null;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Audit */
+            audit: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** LogPage */
+        LogPage: {
+            /** Items */
+            items: components["schemas"]["LogEntry"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
         };
     };
     responses: never;
@@ -1187,6 +1172,66 @@ export interface operations {
                     "application/json": {
                         [key: string]: boolean;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_user_api_users__user_id__deactivate_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reactivate_user_api_users__user_id__reactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
                 };
             };
             /** @description Validation Error */
@@ -1617,108 +1662,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogPage"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    sitemap_sitemap_xml_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    robots_robots_txt_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-        };
-    };
-    serve_index__get: {
-        parameters: {
-            query?: {
-                page?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/html": string;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    serve_post_blog__slug__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/html": string;
                 };
             };
             /** @description Validation Error */

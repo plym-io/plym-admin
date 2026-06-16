@@ -28,7 +28,8 @@ const PRIMARY: NavItem[] = [
 ];
 
 const SECONDARY: NavItem[] = [
-  { to: '/users', label: 'Users', icon: UsersIcon, adminOnly: true },
+  // Everyone can view Users; management actions inside are admin-gated.
+  { to: '/users', label: 'Users', icon: UsersIcon },
   { to: '/logs', label: 'Logs', icon: Pulse },
   { to: '/settings', label: 'Settings', icon: GearSix },
 ];

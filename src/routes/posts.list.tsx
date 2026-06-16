@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { AnimatePresence, LayoutGroup } from 'motion/react';
 import { toast } from 'sonner';
-import { MagnifyingGlass, PencilSimpleLine, Article } from '@phosphor-icons/react';
+import { MagnifyingGlass, PencilSimpleLine, Article, Plus } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import { usePostsStore } from '@/store/posts';
 import { useDebouncedValue } from '@/hooks/use-debounced';
 import type { PostListItem, PostStatus } from '@/types';
 import { Page, PageHeader } from '@/components/ui/page';
+import { Button } from '@/components/ui/button';
 import { PostRow } from '@/components/posts/PostRow';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -155,6 +156,11 @@ export default function PostsList() {
                 filter !== 'all' || debouncedQuery ? ' match' : ''
               }`
             : undefined
+        }
+        actions={
+          <Button variant="accent" onClick={() => navigate('/posts/new')}>
+            <Plus size={16} weight="bold" /> New post
+          </Button>
         }
       />
 

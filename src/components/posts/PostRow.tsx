@@ -8,11 +8,13 @@ import {
   EyeSlash,
   Check,
   LinkSimple,
+  ArrowSquareOut,
 } from '@phosphor-icons/react';
 import type { PostListItem } from '@/types';
 import { STATUS_META } from '@/components/ui/status';
 import { ConfirmButton } from '@/components/ui/confirm';
 import { shortDate, hostname } from '@/lib/format';
+import { apiBase } from '@/lib/base';
 import { cn } from '@/lib/classnames';
 
 interface Props {
@@ -89,6 +91,18 @@ export function PostRow({ post, onTogglePublish, onRefresh, onDelete }: Props) {
 
       {/* Hover actions */}
       <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+        {isPublished && (
+          <button
+            onClick={stop(() =>
+              window.open(`${apiBase}/${post.slug}`, '_blank', 'noopener'),
+            )}
+            title="View live post"
+            aria-label="View live post"
+            className="rounded-md p-1.5 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg"
+          >
+            <ArrowSquareOut size={16} />
+          </button>
+        )}
         <ConfirmButton
           icon={isPublished ? EyeSlash : Eye}
           label={isPublished ? 'Unpublish' : 'Publish'}
