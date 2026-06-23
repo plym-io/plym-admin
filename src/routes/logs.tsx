@@ -3,7 +3,6 @@ import { motion } from 'motion/react';
 import { Pulse } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
-import type { LogEntry } from '@/types';
 import { Page, PageHeader } from '@/components/ui/page';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,6 +11,18 @@ import { cn } from '@/lib/classnames';
 
 const PREFIXES = ['all', 'auth', 'posts', 'media', 'users'] as const;
 type Prefix = (typeof PREFIXES)[number];
+
+// The backend dropped /api/logs, so it's no longer in the generated schema and
+// this route is currently unreachable (no nav/router entry). Kept intact behind
+// a local type so it builds and can be restored verbatim if logs return.
+interface LogEntry {
+  id: number;
+  event: string;
+  target?: string | null;
+  actor_id?: number | null;
+  audit: boolean;
+  created_at: string;
+}
 
 function eventStyle(event: string) {
   if (event.endsWith('publish')) return 'bg-accent-soft text-accent';
@@ -37,8 +48,10 @@ export default function Logs() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    call(
-      api.GET('/api/logs', {
+    // Cast: /api/logs is absent from the typed client until the backend re-adds it.
+    call<{ items: LogEntry[] }>(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (api.GET as any)('/api/logs', {
         params: {
           query: {
             page: 1,

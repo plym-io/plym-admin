@@ -11,7 +11,6 @@ const PostsList = lazy(() => import('@/routes/posts.list'));
 const PostEditor = lazy(() => import('@/routes/posts.editor'));
 const Media = lazy(() => import('@/routes/media'));
 const Users = lazy(() => import('@/routes/users'));
-const Logs = lazy(() => import('@/routes/logs'));
 const Settings = lazy(() => import('@/routes/settings'));
 
 const wrap = (el: React.ReactNode) => (
@@ -35,7 +34,6 @@ const router = createBrowserRouter(
         { path: 'posts/:id', element: wrap(<PostEditor />) },
         { path: 'media', element: wrap(<Media />) },
         { path: 'users', element: wrap(<Users />) },
-        { path: 'logs', element: wrap(<Logs />) },
         { path: 'settings', element: wrap(<Settings />) },
       ],
     },

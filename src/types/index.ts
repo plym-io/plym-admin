@@ -12,7 +12,5 @@ export type MediaItem = components['schemas']['MediaItem'];
 export type MediaPage = components['schemas']['MediaPage'];
 export type Tag = components['schemas']['Tag'];
 export type TokenPair = components['schemas']['TokenPair'];
-export type LogEntry = components['schemas']['LogEntry'];
-export type LogPage = components['schemas']['LogPage'];
 export type UserPage = components['schemas']['UserPage'];
 export type SiteConfig = components['schemas']['SiteConfig'];

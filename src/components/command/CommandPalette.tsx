@@ -7,7 +7,6 @@ import {
   House,
   Images,
   Users as UsersIcon,
-  Pulse,
   GearSix,
   PlusCircle,
   UploadSimple,
@@ -170,9 +169,6 @@ export function CommandPalette() {
                       <UsersIcon size={16} /> Users
                     </Command.Item>
                   )}
-                  <Command.Item value="logs activity" onSelect={() => go('/logs')}>
-                    <Pulse size={16} /> Logs
-                  </Command.Item>
                   <Command.Item value="settings config" onSelect={() => go('/settings')}>
                     <GearSix size={16} /> Settings
                   </Command.Item>
