@@ -16,6 +16,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Kbd } from '@/components/ui/kbd';
 import { cn } from '@/lib/classnames';
 
+const PAGE_SIZE = 20;
+
 type Filter = 'all' | PostStatus;
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -37,34 +39,39 @@ function sortPosts(a: PostListItem, b: PostListItem) {
 
 export default function PostsList() {
   const navigate = useNavigate();
-  const { list, loaded, setList, patch, remove, upsert } = usePostsStore();
+  const { list, loaded, setList, append, patch, remove, upsert } = usePostsStore();
   const [loading, setLoading] = useState(!loaded);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [total, setTotal] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  // Items fetched from the server so far for the active filter/search. Tracked
+  // separately from `list.length` so optimistic add/remove can't skew "has more".
+  const [loadedCount, setLoadedCount] = useState(0);
   const debouncedQuery = useDebouncedValue(query.trim(), 250);
+
+  // Same query params for the initial page and "load more", minus `page`.
+  const queryFor = (p: number) => ({
+    include_drafts: true,
+    page: p,
+    page_size: PAGE_SIZE,
+    ...(filter !== 'all' && { status: filter }),
+    ...(debouncedQuery && { search: debouncedQuery }),
+  });
 
   // Server-side scope (BRD FOLLOWUP §1.4): drafts included, status pills map to
   // `status`, the search box maps to `search`. Refetch when either changes.
   useEffect(() => {
     let cancelled = false;
     if (!loaded) setLoading(true);
-    call(
-      api.GET('/api/posts', {
-        params: {
-          query: {
-            include_drafts: true,
-            page: 1,
-            ...(filter !== 'all' && { status: filter }),
-            ...(debouncedQuery && { search: debouncedQuery }),
-          },
-        },
-      }),
-    )
+    call(api.GET('/api/posts', { params: { query: queryFor(1) } }))
       .then((p) => {
         if (cancelled) return;
         setList(p.items);
         setTotal(p.total);
+        setPage(1);
+        setLoadedCount(p.items.length);
       })
       .catch(
         (e) =>
@@ -81,6 +88,25 @@ export default function PostsList() {
   // Server already filtered + ordered by updated_at; we re-group by status so
   // published rises above drafts in the "All" view (BRD §6.3).
   const visible = useMemo(() => [...list].sort(sortPosts), [list]);
+
+  const hasMore = total !== null && loadedCount < total;
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    const next = page + 1;
+    setLoadingMore(true);
+    try {
+      const p = await call(api.GET('/api/posts', { params: { query: queryFor(next) } }));
+      append(p.items);
+      setPage(next);
+      setLoadedCount((c) => c + p.items.length);
+      setTotal(p.total);
+    } catch (e) {
+      toast.error(isApiError(e) ? e.message : 'Could not load more posts');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const togglePublish = async (post: PostListItem) => {
     const next: PostStatus = post.status === 'published' ? 'draft' : 'published';
@@ -243,6 +269,14 @@ export default function PostsList() {
               </AnimatePresence>
             </div>
           </LayoutGroup>
+        )}
+
+        {!loading && hasMore && (
+          <div className="mt-6 flex justify-center">
+            <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? 'Loading…' : `Load more (${total! - loadedCount} left)`}
+            </Button>
+          </div>
         )}
       </div>
     </Page>

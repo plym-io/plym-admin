@@ -317,23 +317,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Logs */
-        get: operations["list_logs_api_logs_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -609,6 +592,8 @@ export interface components {
             title?: string | null;
             /** Content */
             content?: string | null;
+            /** Slug */
+            slug?: string | null;
             /** Excerpt */
             excerpt?: string | null;
             /** Cover */
@@ -829,39 +814,6 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
-        };
-        /** LogEntry */
-        LogEntry: {
-            /** Id */
-            id: number;
-            /** Event */
-            event: string;
-            /** Actor Id */
-            actor_id?: number | null;
-            /** Target */
-            target?: string | null;
-            /** Payload */
-            payload?: {
-                [key: string]: unknown;
-            };
-            /** Audit */
-            audit: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /** LogPage */
-        LogPage: {
-            /** Items */
-            items: components["schemas"]["LogEntry"][];
-            /** Total */
-            total: number;
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
         };
     };
     responses: never;
@@ -1634,43 +1586,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SiteConfig"];
-                };
-            };
-        };
-    };
-    list_logs_api_logs_get: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                /** @description e.g. 'posts' or 'auth.login' */
-                event_prefix?: string | null;
-                actor_id?: number | null;
-                /** @description Only audit-flagged events */
-                audit_only?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LogPage"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

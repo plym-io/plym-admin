@@ -22,12 +22,20 @@ interface InUse {
   posts: { id: number; title: string }[];
 }
 
+const PAGE_SIZE = 20;
+
 export default function Media() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { list, loaded, setList, prepend, remove, addUpload, updateUpload, clearUpload } =
+  const { list, loaded, setList, append, prepend, remove, addUpload, updateUpload, clearUpload } =
     useMediaStore();
   const [loading, setLoading] = useState(!loaded);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState<number | null>(null);
+  // Server count fetched so far; kept apart from `list.length` so uploads/deletes
+  // (which mutate the list optimistically) don't skew the "has more" check.
+  const [loadedCount, setLoadedCount] = useState(0);
   const [active, setActive] = useState<MediaItem | null>(null);
   const [newIds, setNewIds] = useState<Set<number>>(new Set());
   const [dragging, setDragging] = useState(false);
@@ -36,11 +44,37 @@ export default function Media() {
   const dragDepth = useRef(0);
 
   useEffect(() => {
-    call(api.GET('/api/media', { params: { query: { page: 1, page_size: 100 } } }))
-      .then((p) => setList(p.items))
+    call(api.GET('/api/media', { params: { query: { page: 1, page_size: PAGE_SIZE } } }))
+      .then((p) => {
+        setList(p.items);
+        setTotal(p.total);
+        setPage(1);
+        setLoadedCount(p.items.length);
+      })
       .catch((e) => toast.error(isApiError(e) ? e.message : 'Could not load media'))
       .finally(() => setLoading(false));
   }, [setList]);
+
+  const hasMore = total !== null && loadedCount < total;
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    const next = page + 1;
+    setLoadingMore(true);
+    try {
+      const p = await call(
+        api.GET('/api/media', { params: { query: { page: next, page_size: PAGE_SIZE } } }),
+      );
+      append(p.items);
+      setPage(next);
+      setLoadedCount((c) => c + p.items.length);
+      setTotal(p.total);
+    } catch (e) {
+      toast.error(isApiError(e) ? e.message : 'Could not load more media');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // ⌘K "Upload media" deep-links here with ?upload=1.
   useEffect(() => {
@@ -166,7 +200,13 @@ export default function Media() {
       <Page width="wide">
         <PageHeader
           title="Media"
-          description={loaded ? `${list.length} images` : undefined}
+          description={
+            loaded
+              ? total !== null && total > list.length
+                ? `${list.length} of ${total} images`
+                : `${list.length} images`
+              : undefined
+          }
           actions={
             <Button variant="secondary" onClick={() => fileInput.current?.click()}>
               <UploadSimple size={16} /> Upload
@@ -204,6 +244,14 @@ export default function Media() {
                   />
                 ))}
               </AnimatePresence>
+            </div>
+          )}
+
+          {!loading && hasMore && (
+            <div className="mt-6 flex justify-center">
+              <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? 'Loading…' : `Load more (${total! - loadedCount} left)`}
+              </Button>
             </div>
           )}
         </div>

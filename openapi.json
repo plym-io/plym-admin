@@ -1157,113 +1157,6 @@
           }
         ]
       }
-    },
-    "/api/logs": {
-      "get": {
-        "tags": [
-          "Logs"
-        ],
-        "summary": "List Logs",
-        "operationId": "list_logs_api_logs_get",
-        "security": [
-          {
-            "JWT": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 1,
-              "title": "Page"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "default": 50,
-              "title": "Page Size"
-            }
-          },
-          {
-            "name": "event_prefix",
-            "in": "query",
-            "required": false,
-            "description": "e.g. 'posts' or 'auth.login'",
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "e.g. 'posts' or 'auth.login'",
-              "title": "Event Prefix"
-            }
-          },
-          {
-            "name": "actor_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Actor Id"
-            }
-          },
-          {
-            "name": "audit_only",
-            "in": "query",
-            "required": false,
-            "description": "Only audit-flagged events",
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "description": "Only audit-flagged events",
-              "title": "Audit Only"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LogPage"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -1936,6 +1829,20 @@
             ],
             "title": "Content"
           },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 240,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          },
           "excerpt": {
             "anyOf": [
               {
@@ -2507,93 +2414,6 @@
           "type"
         ],
         "title": "ValidationError"
-      },
-      "LogEntry": {
-        "type": "object",
-        "title": "LogEntry",
-        "required": [
-          "id",
-          "event",
-          "audit",
-          "created_at"
-        ],
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "event": {
-            "type": "string",
-            "title": "Event"
-          },
-          "actor_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Actor Id"
-          },
-          "target": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target"
-          },
-          "payload": {
-            "type": "object",
-            "additionalProperties": true,
-            "title": "Payload"
-          },
-          "audit": {
-            "type": "boolean",
-            "title": "Audit"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          }
-        }
-      },
-      "LogPage": {
-        "type": "object",
-        "title": "LogPage",
-        "required": [
-          "items",
-          "total",
-          "page",
-          "page_size"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/LogEntry"
-            },
-            "title": "Items"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "page": {
-            "type": "integer",
-            "title": "Page"
-          },
-          "page_size": {
-            "type": "integer",
-            "title": "Page Size"
-          }
-        }
       }
     },
     "securitySchemes": {
