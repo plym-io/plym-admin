@@ -17,6 +17,8 @@ const button = cva(
         ghost: 'text-fg-muted hover:text-fg hover:bg-bg-muted',
         danger:
           'text-danger hover:bg-danger/10',
+        dangerSolid:
+          'bg-danger text-white hover:brightness-110 shadow-xs',
         link: 'text-accent hover:underline underline-offset-2 px-0',
       },
       size: {

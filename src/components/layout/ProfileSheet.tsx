@@ -1,12 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import type { components } from '@/api/schema';
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import { useAuthStore } from '@/store/auth';
+import { normalizeLinks, type ProfileLink } from '@/lib/profile-links';
 import { Sheet } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { ProfileLinksField } from './ProfileLinksField';
 
 interface ProfileForm {
   display_name: string;
@@ -29,6 +32,8 @@ export function ProfileSheet({
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const { register, handleSubmit, reset, formState } = useForm<ProfileForm>();
+  const [links, setLinks] = useState<ProfileLink[]>([]);
+  const [showLinkErrors, setShowLinkErrors] = useState(false);
 
   // Re-seed the form from the current user each time the sheet opens.
   useEffect(() => {
@@ -38,19 +43,30 @@ export function ProfileSheet({
         bio: user.bio ?? '',
         avatar_url: user.avatar_url ?? '',
       });
+      setLinks(user.links ?? []);
+      setShowLinkErrors(false);
     }
   }, [open, user, reset]);
 
   const submit = async (values: ProfileForm) => {
+    const normalized = normalizeLinks(links);
+    if (!normalized.ok) {
+      setShowLinkErrors(true);
+      toast.error('Fix the highlighted links before saving.');
+      return;
+    }
     try {
       const updated = await call(
         api.PATCH('/api/users/me', {
+          // `links` isn't in the generated UserUpdate type yet (backend pending);
+          // cast to send it. Codegen will make this cast unnecessary once shipped.
           body: {
             display_name: values.display_name,
             // Empty strings clear the optional fields.
             bio: values.bio.trim() || null,
             avatar_url: values.avatar_url.trim() || null,
-          },
+            links: normalized.value,
+          } as components['schemas']['UserUpdate'],
         }),
       );
       setUser(updated);
@@ -93,6 +109,11 @@ export function ProfileSheet({
               placeholder="https://…"
             />
           </Field>
+          <ProfileLinksField
+            links={links}
+            onChange={setLinks}
+            showErrors={showLinkErrors}
+          />
         </div>
         <div className="flex gap-2 border-t border-border p-4">
           <Button type="button" variant="ghost" onClick={onClose} className="flex-1">

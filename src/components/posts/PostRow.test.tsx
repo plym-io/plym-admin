@@ -28,6 +28,7 @@ function renderRow(post: PostListItem) {
         onTogglePublish={vi.fn()}
         onRefresh={vi.fn().mockResolvedValue(undefined)}
         onDelete={vi.fn()}
+        onArchive={vi.fn()}
       />
     </MemoryRouter>,
   );

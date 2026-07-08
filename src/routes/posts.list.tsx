@@ -11,6 +11,7 @@ import type { PostListItem, PostStatus } from '@/types';
 import { Page, PageHeader } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
 import { PostRow } from '@/components/posts/PostRow';
+import { DeletePostModal } from '@/components/posts/DeletePostModal';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Kbd } from '@/components/ui/kbd';
@@ -49,6 +50,7 @@ export default function PostsList() {
   // Items fetched from the server so far for the active filter/search. Tracked
   // separately from `list.length` so optimistic add/remove can't skew "has more".
   const [loadedCount, setLoadedCount] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<PostListItem | null>(null);
   const debouncedQuery = useDebouncedValue(query.trim(), 250);
 
   // Same query params for the initial page and "load more", minus `page`.
@@ -146,30 +148,46 @@ export default function PostsList() {
     }
   };
 
-  const del = (post: PostListItem) => {
+  const archive = async (post: PostListItem) => {
+    if (post.status === 'archived') return;
+    const prev = post.status;
+    patch(post.id, { status: 'archived', updated_at: new Date().toISOString() }); // optimistic
+    try {
+      await call(
+        api.PATCH('/api/posts/{post_id}', {
+          params: { path: { post_id: post.id } },
+          body: { status: 'archived' },
+        }),
+      );
+      // Keep the rendered file in step with the new status.
+      await call(
+        api.POST('/api/posts/{post_id}/refresh', {
+          params: { path: { post_id: post.id } },
+        }),
+      ).catch(() => {});
+      toast.success('Archived.');
+    } catch (e) {
+      patch(post.id, { status: prev });
+      toast.error(isApiError(e) ? e.message : 'Could not archive', {
+        action: { label: 'Retry', onClick: () => archive(post) },
+      });
+    }
+  };
+
+  // Deletion is confirmed by typing DELETE in the modal, so it runs immediately.
+  const del = async (post: PostListItem) => {
     remove(post.id); // optimistic collapse
-    let undone = false;
-    toast(`Deleted "${post.title}"`, {
-      duration: 8000,
-      action: {
-        label: 'Undo',
-        onClick: () => {
-          undone = true;
-          upsert(post);
-        },
-      },
-      onAutoClose: () => {
-        if (undone) return;
-        void call(
-          api.DELETE('/api/posts/{post_id}', {
-            params: { path: { post_id: post.id } },
-          }),
-        ).catch((e) => {
-          upsert(post); // restore on failure
-          toast.error(isApiError(e) ? e.message : 'Delete failed');
-        });
-      },
-    });
+    try {
+      await call(
+        api.DELETE('/api/posts/{post_id}', {
+          params: { path: { post_id: post.id } },
+        }),
+      );
+      toast.success(`Deleted "${post.title}"`);
+    } catch (e) {
+      upsert(post); // restore on failure
+      toast.error(isApiError(e) ? e.message : 'Delete failed');
+    }
   };
 
   return (
@@ -263,7 +281,8 @@ export default function PostsList() {
                     post={post}
                     onTogglePublish={togglePublish}
                     onRefresh={refresh}
-                    onDelete={del}
+                    onDelete={setDeleteTarget}
+                    onArchive={archive}
                   />
                 ))}
               </AnimatePresence>
@@ -279,6 +298,13 @@ export default function PostsList() {
           </div>
         )}
       </div>
+
+      <DeletePostModal
+        post={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDelete={del}
+        onArchive={archive}
+      />
     </Page>
   );
 }

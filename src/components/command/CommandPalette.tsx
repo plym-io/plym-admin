@@ -6,6 +6,7 @@ import {
   Article,
   House,
   Images,
+  Target,
   Users as UsersIcon,
   GearSix,
   PlusCircle,
@@ -165,9 +166,14 @@ export function CommandPalette() {
                     <Images size={16} /> Media
                   </Command.Item>
                   {role === 'administrator' && (
-                    <Command.Item value="users" onSelect={() => go('/users')}>
-                      <UsersIcon size={16} /> Users
-                    </Command.Item>
+                    <>
+                      <Command.Item value="leads submissions" onSelect={() => go('/leads')}>
+                        <Target size={16} /> Leads
+                      </Command.Item>
+                      <Command.Item value="users" onSelect={() => go('/users')}>
+                        <UsersIcon size={16} /> Users
+                      </Command.Item>
+                    </>
                   )}
                   <Command.Item value="settings config" onSelect={() => go('/settings')}>
                     <GearSix size={16} /> Settings

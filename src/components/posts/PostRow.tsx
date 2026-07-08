@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import {
+  Archive,
   ArrowsClockwise,
   Trash,
   Eye,
@@ -13,6 +14,7 @@ import {
 import type { PostListItem } from '@/types';
 import { STATUS_META } from '@/components/ui/status';
 import { ConfirmButton } from '@/components/ui/confirm';
+import { KebabMenu, type KebabMenuItem } from '@/components/ui/kebab-menu';
 import { shortDate, hostname } from '@/lib/format';
 import { apiBase } from '@/lib/base';
 import { cn } from '@/lib/classnames';
@@ -22,9 +24,16 @@ interface Props {
   onTogglePublish: (post: PostListItem) => void;
   onRefresh: (post: PostListItem) => Promise<void>;
   onDelete: (post: PostListItem) => void;
+  onArchive: (post: PostListItem) => void;
 }
 
-export function PostRow({ post, onTogglePublish, onRefresh, onDelete }: Props) {
+export function PostRow({
+  post,
+  onTogglePublish,
+  onRefresh,
+  onDelete,
+  onArchive,
+}: Props) {
   const navigate = useNavigate();
   const [refreshing, setRefreshing] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
@@ -89,9 +98,10 @@ export function PostRow({ post, onTogglePublish, onRefresh, onDelete }: Props) {
         <span>{post.reading_time} min read</span>
       </div>
 
-      {/* Hover actions */}
+      {/* Hover actions. Every row renders the same four slots (the view slot
+          falls back to a spacer) so the meta column aligns across rows. */}
       <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-        {isPublished && (
+        {isPublished ? (
           <button
             onClick={stop(() =>
               window.open(`${apiBase}/${post.slug}`, '_blank', 'noopener'),
@@ -102,6 +112,8 @@ export function PostRow({ post, onTogglePublish, onRefresh, onDelete }: Props) {
           >
             <ArrowSquareOut size={16} />
           </button>
+        ) : (
+          <span className="w-7" aria-hidden />
         )}
         <ConfirmButton
           icon={isPublished ? EyeSlash : Eye}
@@ -129,13 +141,24 @@ export function PostRow({ post, onTogglePublish, onRefresh, onDelete }: Props) {
             />
           )}
         </button>
-        <ConfirmButton
-          icon={Trash}
-          label="Delete"
-          question={`Delete "${post.title}"? You'll have a few seconds to undo.`}
-          confirmLabel="Delete"
-          tone="danger"
-          onConfirm={() => onDelete(post)}
+        <KebabMenu
+          items={[
+            ...(post.status !== 'archived'
+              ? [
+                  {
+                    icon: Archive,
+                    label: 'Archive',
+                    onSelect: () => onArchive(post),
+                  } satisfies KebabMenuItem,
+                ]
+              : []),
+            {
+              icon: Trash,
+              label: 'Delete',
+              tone: 'danger',
+              onSelect: () => onDelete(post),
+            },
+          ]}
         />
       </div>
     </motion.div>

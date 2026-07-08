@@ -1,7 +1,11 @@
 import type { components } from '@/api/schema';
+import type { ProfileLink } from '@/lib/profile-links';
 
 /** Convenience aliases over the generated OpenAPI schema. */
-export type User = components['schemas']['User'];
+// `links` isn't in the generated schema yet (backend pending); model it as an
+// optional field so the profile editor can read/write it. Once the backend
+// ships and `npm run codegen` regenerates the schema, this becomes redundant.
+export type User = components['schemas']['User'] & { links?: ProfileLink[] | null };
 export type UserPublic = components['schemas']['UserPublic'];
 export type Role = components['schemas']['Role'];
 export type Post = components['schemas']['Post'];

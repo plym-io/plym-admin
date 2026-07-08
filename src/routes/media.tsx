@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'sonner';
-import { UploadSimple, Images, ArrowRight } from '@phosphor-icons/react';
+import { UploadSimple, Images, ArrowRight, Trash } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import { uploadMedia } from '@/lib/upload';
@@ -15,6 +15,7 @@ import { UploadProgress } from '@/components/media/UploadProgress';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sheet } from '@/components/ui/sheet';
+import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 
 interface InUse {
@@ -37,6 +38,7 @@ export default function Media() {
   // (which mutate the list optimistically) don't skew the "has more" check.
   const [loadedCount, setLoadedCount] = useState(0);
   const [active, setActive] = useState<MediaItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MediaItem | null>(null);
   const [newIds, setNewIds] = useState<Set<number>>(new Set());
   const [dragging, setDragging] = useState(false);
   const [inUse, setInUse] = useState<InUse | null>(null);
@@ -152,35 +154,32 @@ export default function Media() {
     };
   }, [handleFiles]);
 
+  // Runs after the "Are you sure" modal is confirmed, so it deletes immediately.
   const del = async (item: MediaItem) => {
+    setDeleteTarget(null);
     setActive(null);
     remove(item.id); // optimistic
-    let undone = false;
-    toast(`Deleted ${item.original_name ?? item.filename}`, {
-      duration: 8000,
-      action: { label: 'Undo', onClick: () => { undone = true; prepend(item); } },
-      onAutoClose: () => {
-        if (undone) return;
-        void call(
-          api.DELETE('/api/media/{media_id}', {
-            params: { path: { media_id: item.id } },
-          }),
-        ).catch((e) => {
-          prepend(item); // restore
-          if (isApiError(e) && e.code.includes('in_use')) {
-            const raw = e.raw as
-              | { detail?: { posts?: { id: number; title: string }[] } }
-              | null;
-            setInUse({
-              message: e.message,
-              posts: raw?.detail?.posts ?? [],
-            });
-          } else {
-            toast.error(isApiError(e) ? e.message : 'Delete failed');
-          }
+    try {
+      await call(
+        api.DELETE('/api/media/{media_id}', {
+          params: { path: { media_id: item.id } },
+        }),
+      );
+      toast.success(`Deleted ${item.original_name ?? item.filename}`);
+    } catch (e) {
+      prepend(item); // restore
+      if (isApiError(e) && e.code.includes('in_use')) {
+        const raw = e.raw as
+          | { detail?: { posts?: { id: number; title: string }[] } }
+          | null;
+        setInUse({
+          message: e.message,
+          posts: raw?.detail?.posts ?? [],
         });
-      },
-    });
+      } else {
+        toast.error(isApiError(e) ? e.message : 'Delete failed');
+      }
+    }
   };
 
   return (
@@ -274,7 +273,37 @@ export default function Media() {
         )}
       </AnimatePresence>
 
-      <MediaSheet item={active} onClose={() => setActive(null)} onDelete={del} />
+      <MediaSheet
+        item={active}
+        onClose={() => setActive(null)}
+        onDelete={setDeleteTarget}
+      />
+
+      {/* Delete confirm — sits above the detail sheet, which stays open on cancel. */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        label="Delete image"
+      >
+        {deleteTarget && (
+          <div className="p-6">
+            <h2 className="pr-8 text-lg font-semibold tracking-tight text-fg">
+              Delete {deleteTarget.original_name ?? deleteTarget.filename}?
+            </h2>
+            <p className="mt-1.5 text-sm text-fg-muted">
+              Are you sure? This can&apos;t be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
+                Cancel
+              </Button>
+              <Button variant="dangerSolid" onClick={() => del(deleteTarget)}>
+                <Trash size={16} /> Delete
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
       <UploadProgress />
 
       {/* in-use bottom sheet (BRD §6.5) */}

@@ -4,6 +4,7 @@ import {
   House,
   Article,
   Images,
+  Target,
   Users as UsersIcon,
   GearSix,
   type Icon,
@@ -27,6 +28,8 @@ const PRIMARY: NavItem[] = [
 ];
 
 const SECONDARY: NavItem[] = [
+  // Leads (form submissions) are administrator-only.
+  { to: '/leads', label: 'Leads', icon: Target, adminOnly: true },
   // Everyone can view Users; management actions inside are admin-gated.
   { to: '/users', label: 'Users', icon: UsersIcon },
   { to: '/settings', label: 'Settings', icon: GearSix },

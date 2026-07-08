@@ -10,6 +10,7 @@ const Home = lazy(() => import('@/routes/home'));
 const PostsList = lazy(() => import('@/routes/posts.list'));
 const PostEditor = lazy(() => import('@/routes/posts.editor'));
 const Media = lazy(() => import('@/routes/media'));
+const Leads = lazy(() => import('@/routes/leads'));
 const Users = lazy(() => import('@/routes/users'));
 const Settings = lazy(() => import('@/routes/settings'));
 
@@ -33,6 +34,7 @@ const router = createBrowserRouter(
         // creating a post swaps the param in place without remounting the editor.
         { path: 'posts/:id', element: wrap(<PostEditor />) },
         { path: 'media', element: wrap(<Media />) },
+        { path: 'leads', element: wrap(<Leads />) },
         { path: 'users', element: wrap(<Users />) },
         { path: 'settings', element: wrap(<Settings />) },
       ],
