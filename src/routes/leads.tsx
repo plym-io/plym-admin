@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate } from 'react-router';
 import { toast } from 'sonner';
 import {
@@ -8,6 +8,8 @@ import {
   DownloadSimple,
   Table,
   Tray,
+  ArrowUp,
+  ArrowDown,
   type Icon,
 } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
@@ -51,6 +53,8 @@ interface Column {
   time?: boolean;
 }
 
+type SortState = { colId: string; dir: 'asc' | 'desc' } | null;
+
 /** "client_addr" → "Client addr", "email" → "Email". */
 function humanize(key: string) {
   const spaced = key.replace(/[_-]+/g, ' ').trim();
@@ -74,12 +78,54 @@ function unionKeys(rows: Submission[], pick: (s: Submission) => Dict | null) {
   return keys;
 }
 
-/** Flatten any cell value to a plain string for CSV / clipboard. */
+/** Flatten any cell value to a plain string for CSV / clipboard / matching. */
 function cellText(value: unknown): string {
   if (value == null) return '';
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return JSON.stringify(value);
+}
+
+/** Compare two non-empty cell values; numeric/date aware, else lexical. */
+function compareValues(a: unknown, b: unknown, time: boolean): number {
+  if (time) {
+    return new Date(String(a)).getTime() - new Date(String(b)).getTime();
+  }
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  const sa = cellText(a);
+  const sb = cellText(b);
+  const na = Number(sa);
+  const nb = Number(sb);
+  if (sa.trim() && sb.trim() && !Number.isNaN(na) && !Number.isNaN(nb)) {
+    return na - nb;
+  }
+  return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+/** Copy text to the clipboard, with a legacy fallback for insecure contexts. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through to the legacy path */
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 export default function Leads() {
@@ -91,6 +137,18 @@ export default function Leads() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // Client-side view controls (operate on the rows loaded so far).
+  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [sort, setSort] = useState<SortState>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const searchRef = useDismiss(searchOpen, () => setSearchOpen(false));
+  const sortRef = useDismiss(sortOpen, () => setSortOpen(false));
+  const filterRef = useDismiss(filterOpen, () => setFilterOpen(false));
 
   const fetchPage = (p: number) =>
     call<SubmissionPage>(
@@ -153,6 +211,58 @@ export default function Leads() {
     ];
   }, [rows]);
 
+  const columnsById = useMemo(
+    () => Object.fromEntries(columns.map((c) => [c.id, c])),
+    [columns],
+  );
+
+  const activeFilters = useMemo(
+    () => Object.entries(filters).filter(([, v]) => v.trim() !== ''),
+    [filters],
+  );
+
+  // Apply filters → search → sort to the loaded rows.
+  const view = useMemo(() => {
+    let out = rows;
+
+    if (activeFilters.length) {
+      out = out.filter((r) =>
+        activeFilters.every(([colId, q]) => {
+          const col = columnsById[colId];
+          if (!col) return true;
+          return cellText(col.get(r)).toLowerCase().includes(q.trim().toLowerCase());
+        }),
+      );
+    }
+
+    const q = search.trim().toLowerCase();
+    if (q) {
+      out = out.filter((r) =>
+        columns.some((c) => cellText(c.get(r)).toLowerCase().includes(q)),
+      );
+    }
+
+    if (sort) {
+      const col = columnsById[sort.colId];
+      if (col) {
+        const factor = sort.dir === 'asc' ? 1 : -1;
+        out = [...out].sort((a, b) => {
+          const av = col.get(a);
+          const bv = col.get(b);
+          const aEmpty = av == null || av === '';
+          const bEmpty = bv == null || bv === '';
+          if (aEmpty || bEmpty) {
+            if (aEmpty && bEmpty) return 0;
+            return aEmpty ? 1 : -1; // empties always sort last
+          }
+          return factor * compareValues(av, bv, !!col.time);
+        });
+      }
+    }
+
+    return out;
+  }, [rows, columns, columnsById, activeFilters, search, sort]);
+
   const hasMore = total !== null && rows.length < total;
 
   const loadMore = async () => {
@@ -171,7 +281,16 @@ export default function Leads() {
     }
   };
 
-  // Serialize the loaded rows with the given delimiter. CSV quotes; TSV strips
+  // Click a header (or a Sort-menu row) to cycle: asc → desc → unsorted.
+  const toggleSort = (colId: string) => {
+    setSort((prev) => {
+      if (prev?.colId !== colId) return { colId, dir: 'asc' };
+      if (prev.dir === 'asc') return { colId, dir: 'desc' };
+      return null;
+    });
+  };
+
+  // Serialize the current view with the given delimiter. CSV quotes; TSV strips
   // tabs/newlines so a clipboard paste lands cleanly in a sheet.
   const serialize = (delim: string) => {
     const esc = (raw: string) => {
@@ -181,7 +300,7 @@ export default function Leads() {
       return raw.replace(/[\t\n]/g, ' ');
     };
     const header = columns.map((c) => esc(c.label)).join(delim);
-    const lines = rows.map((r) =>
+    const lines = view.map((r) =>
       columns.map((c) => esc(cellText(c.get(r)))).join(delim),
     );
     return [header, ...lines].join('\n');
@@ -199,21 +318,27 @@ export default function Leads() {
   };
 
   const openInSheets = () => {
-    navigator.clipboard
-      .writeText(serialize('\t'))
-      .then(() =>
+    // Open first (synchronous, tied to the click) so it's never popup-blocked.
+    const win = window.open('https://sheets.new', '_blank');
+    if (win) win.opener = null;
+    void copyText(serialize('\t')).then((ok) => {
+      if (ok) {
         toast.success('Leads copied to clipboard.', {
           description: 'Paste into the new sheet with ⌘V.',
-        }),
-      )
-      .catch(() => {});
-    window.open('https://sheets.new', '_blank', 'noopener,noreferrer');
+        });
+      } else {
+        toast.info('Opened Google Sheets.', {
+          description: 'Copy was blocked here — use Export as CSV, then File → Import.',
+        });
+      }
+    });
   };
 
   // Admins only — bounce anyone who reaches the URL directly.
   if (!isAdmin) return <Navigate to="/" replace />;
 
-  const empty = !loading && rows.length === 0;
+  const noData = !loading && rows.length === 0;
+  const noMatches = !loading && rows.length > 0 && view.length === 0;
 
   return (
     <Page width="full">
@@ -226,19 +351,119 @@ export default function Leads() {
         }
       />
 
-      {/* Toolbar: filter/sort/search are presentational for now; export works. */}
+      {/* Toolbar: filter / sort / search act on the loaded rows; export works. */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-1.5">
-          <ToolButton icon={Funnel} label="Filter" />
-          <ToolButton icon={ArrowsDownUp} label="Sort" />
-          <ToolButton icon={MagnifyingGlass} label="Search" />
+          <div className="relative" ref={filterRef}>
+            <ToolButton
+              icon={Funnel}
+              label="Filter"
+              count={activeFilters.length}
+              active={filterOpen || activeFilters.length > 0}
+              onClick={() => setFilterOpen((o) => !o)}
+            />
+            {filterOpen && (
+              <Popover className="w-64">
+                <div className="max-h-72 space-y-2 overflow-y-auto p-2">
+                  {columns.map((c) => (
+                    <label key={c.id} className="block">
+                      <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-fg-subtle">
+                        {c.label}
+                      </span>
+                      <input
+                        value={filters[c.id] ?? ''}
+                        onChange={(e) =>
+                          setFilters((f) => ({ ...f, [c.id]: e.target.value }))
+                        }
+                        placeholder="Contains…"
+                        className="h-7 w-full rounded border border-border bg-bg-subtle px-2 text-[13px] outline-none transition-colors hover:border-border-strong focus:border-accent"
+                      />
+                    </label>
+                  ))}
+                </div>
+                {activeFilters.length > 0 && (
+                  <PopoverFooter onClick={() => setFilters({})}>
+                    Clear all filters
+                  </PopoverFooter>
+                )}
+              </Popover>
+            )}
+          </div>
+
+          <div className="relative" ref={sortRef}>
+            <ToolButton
+              icon={ArrowsDownUp}
+              label="Sort"
+              active={sortOpen || sort !== null}
+              onClick={() => setSortOpen((o) => !o)}
+            />
+            {sortOpen && (
+              <Popover className="w-52">
+                <div className="p-1">
+                  {columns.map((c) => {
+                    const dir = sort?.colId === c.id ? sort.dir : null;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleSort(c.id)}
+                        className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+                      >
+                        <span className="truncate">{c.label}</span>
+                        {dir === 'asc' && (
+                          <ArrowUp size={13} weight="bold" className="text-accent" />
+                        )}
+                        {dir === 'desc' && (
+                          <ArrowDown size={13} weight="bold" className="text-accent" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {sort && (
+                  <PopoverFooter onClick={() => setSort(null)}>
+                    Clear sort
+                  </PopoverFooter>
+                )}
+              </Popover>
+            )}
+          </div>
+
+          <div className="relative" ref={searchRef}>
+            <ToolButton
+              icon={MagnifyingGlass}
+              label="Search"
+              active={searchOpen || search.trim() !== ''}
+              onClick={() => setSearchOpen((o) => !o)}
+            />
+            {searchOpen && (
+              <Popover className="w-64">
+                <div className="p-2">
+                  <div className="relative">
+                    <MagnifyingGlass
+                      size={14}
+                      className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle"
+                    />
+                    <input
+                      autoFocus
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search all columns…"
+                      className="h-8 w-full rounded-md border border-border bg-bg-subtle pl-8 pr-2 text-sm outline-none transition-colors hover:border-border-strong focus:border-accent"
+                    />
+                  </div>
+                </div>
+              </Popover>
+            )}
+          </div>
         </div>
+
         <div className="flex items-center gap-1.5">
           <Button
             variant="secondary"
             size="sm"
             onClick={exportCsv}
-            disabled={empty}
+            disabled={view.length === 0}
           >
             <DownloadSimple size={15} weight="bold" /> Export as CSV
           </Button>
@@ -246,7 +471,7 @@ export default function Leads() {
             variant="secondary"
             size="sm"
             onClick={openInSheets}
-            disabled={empty}
+            disabled={view.length === 0}
           >
             <Table size={15} weight="bold" /> Open in Google Sheets
           </Button>
@@ -259,11 +484,17 @@ export default function Leads() {
             <Skeleton key={i} className="h-10 w-full" />
           ))}
         </div>
-      ) : empty ? (
+      ) : noData ? (
         <EmptyState
           icon={Tray}
           title="No leads yet."
           hint="Submissions from your forms will show up here."
+        />
+      ) : noMatches ? (
+        <EmptyState
+          icon={MagnifyingGlass}
+          title="No leads match."
+          hint="Try a different search or clear your filters."
         />
       ) : (
         <>
@@ -272,13 +503,36 @@ export default function Leads() {
               <thead>
                 <tr className="bg-bg-subtle">
                   <Th className="w-10 text-center text-fg-subtle">#</Th>
-                  {columns.map((c) => (
-                    <Th key={c.id}>{c.label}</Th>
-                  ))}
+                  {columns.map((c) => {
+                    const dir = sort?.colId === c.id ? sort.dir : null;
+                    return (
+                      <th
+                        key={c.id}
+                        onClick={() => toggleSort(c.id)}
+                        title={`Sort by ${c.label}`}
+                        className="cursor-pointer select-none border-b border-r border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap transition-colors last:border-r-0 hover:text-fg"
+                      >
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1',
+                            dir ? 'text-fg' : 'text-fg-subtle',
+                          )}
+                        >
+                          {c.label}
+                          {dir === 'asc' && (
+                            <ArrowUp size={12} weight="bold" className="text-accent" />
+                          )}
+                          {dir === 'desc' && (
+                            <ArrowDown size={12} weight="bold" className="text-accent" />
+                          )}
+                        </span>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
+                {view.map((row, i) => (
                   <tr
                     key={row.id}
                     className="transition-colors hover:bg-bg-subtle"
@@ -311,6 +565,68 @@ export default function Leads() {
         </>
       )}
     </Page>
+  );
+}
+
+/** Close-on-outside-click / Escape for a popover. Returns the wrapper ref. */
+function useDismiss(open: boolean, onClose: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  const cb = useRef(onClose);
+  cb.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) cb.current();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cb.current();
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return ref;
+}
+
+function Popover({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'absolute left-0 top-full z-20 mt-1.5 rounded-lg border border-border bg-bg shadow-md',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function PopoverFooter({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <div className="border-t border-border p-1">
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full rounded-md px-2.5 py-1.5 text-left text-[13px] text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg"
+      >
+        {children}
+      </button>
+    </div>
   );
 }
 
@@ -375,16 +691,39 @@ function Cell({ column, row }: { column: Column; row: Submission }) {
   );
 }
 
-// Presentational toolbar control (filter/sort/search) — UI only for now.
-function ToolButton({ icon: Icon, label }: { icon: Icon; label: string }) {
+// Toolbar control that toggles a popover. Shows an active state and an optional
+// count badge (used by Filter).
+function ToolButton({
+  icon: Icon,
+  label,
+  active,
+  count,
+  onClick,
+}: {
+  icon: Icon;
+  label: string;
+  active?: boolean;
+  count?: number;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
-      title={`${label} — coming soon`}
-      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg-subtle px-3 text-[13px] font-medium text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium transition-colors',
+        active
+          ? 'border-accent/40 bg-accent-soft text-accent'
+          : 'border-border bg-bg-subtle text-fg-muted hover:bg-bg-muted hover:text-fg',
+      )}
     >
       <Icon size={15} weight="bold" />
       {label}
+      {count != null && count > 0 && (
+        <span className="ml-0.5 rounded-pill bg-accent px-1.5 text-[11px] font-semibold text-white tnum">
+          {count}
+        </span>
+      )}
     </button>
   );
 }
