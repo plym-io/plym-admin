@@ -57,8 +57,11 @@ const authMiddleware: Middleware = {
   },
 
   async onResponse({ request, response, schemaPath }) {
+    // Plym returns 403 (not just 401) for an expired/invalid access token,
+    // so both must trigger the refresh-and-retry flow — otherwise the
+    // request just fails with a raw "Forbidden" until the user reloads.
     if (
-      response.status !== 401 ||
+      (response.status !== 401 && response.status !== 403) ||
       schemaPath === REFRESH_PATH ||
       schemaPath === LOGIN_PATH ||
       request.headers.get('x-retried') === '1'

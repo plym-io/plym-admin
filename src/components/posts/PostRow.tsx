@@ -39,6 +39,7 @@ export function PostRow({
   const [refreshed, setRefreshed] = useState(false);
   const meta = STATUS_META[post.status];
   const isPublished = post.status === 'published';
+  const isArchived = post.status === 'archived';
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -60,7 +61,8 @@ export function PostRow({
     <motion.div
       layout
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      // Archived posts read as retired — recessed, like deactivated users.
+      animate={{ opacity: isArchived ? 0.6 : 1 }}
       exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       onClick={() => navigate(`/posts/${post.id}`)}
@@ -75,13 +77,26 @@ export function PostRow({
       {/* Title + excerpt */}
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 text-[15px] font-semibold leading-tight text-fg">
-          <span className="truncate">{post.title}</span>
+          <span className="min-w-0 truncate">{post.title}</span>
           {post.canonical_url && (
             <span
               className="flex shrink-0 items-center text-fg-muted"
               title={`Canonical URL: ${hostname(post.canonical_url)}`}
             >
               <LinkSimple size={14} weight="regular" />
+            </span>
+          )}
+          {!isPublished && (
+            <span
+              className={cn(
+                'inline-flex shrink-0 items-center gap-1 rounded-pill px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                isArchived
+                  ? 'bg-bg-muted text-fg-subtle'
+                  : 'bg-bg-muted text-fg-muted',
+              )}
+            >
+              {isArchived && <Archive size={10} weight="bold" />}
+              {meta.label}
             </span>
           )}
         </p>

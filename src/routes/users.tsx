@@ -187,14 +187,14 @@ export default function Users() {
               </div>
               <span
                 className={cn(
-                  'rounded-pill px-2 py-0.5 text-xs font-medium capitalize',
+                  'shrink-0 rounded-pill px-2 py-0.5 text-xs font-medium capitalize',
                   ROLE_STYLE[u.role],
                 )}
               >
                 {u.role}
               </span>
               {isAdmin && (
-                <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="flex w-16 shrink-0 items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   {u.is_active ? (
                     <>
                       <ConfirmButton

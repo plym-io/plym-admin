@@ -12,6 +12,8 @@ const PostEditor = lazy(() => import('@/routes/posts.editor'));
 const Media = lazy(() => import('@/routes/media'));
 const Leads = lazy(() => import('@/routes/leads'));
 const Users = lazy(() => import('@/routes/users'));
+const Faqs = lazy(() => import('@/routes/faqs'));
+const Tags = lazy(() => import('@/routes/tags'));
 const Settings = lazy(() => import('@/routes/settings'));
 
 const wrap = (el: React.ReactNode) => (
@@ -36,6 +38,8 @@ const router = createBrowserRouter(
         { path: 'media', element: wrap(<Media />) },
         { path: 'leads', element: wrap(<Leads />) },
         { path: 'users', element: wrap(<Users />) },
+        { path: 'faqs', element: wrap(<Faqs />) },
+        { path: 'tags', element: wrap(<Tags />) },
         { path: 'settings', element: wrap(<Settings />) },
       ],
     },

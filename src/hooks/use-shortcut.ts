@@ -33,11 +33,17 @@ export function useShortcut(
     const needMod = parts.includes('mod');
     const needShift = parts.includes('shift');
     const needAlt = parts.includes('alt');
+    // Punctuation like "?" only exists as a shifted variant of another key —
+    // e.key already disambiguates it ("?" vs "/"), so don't also demand an
+    // exact shiftKey match (pressing "?" always sets shiftKey, even though
+    // the combo has no "shift" part). Named/alnum keys keep the strict
+    // check, since e.g. "b" vs shift+"b" both lowercase to "b".
+    const isSymbolKey = key.length === 1 && !/[a-z0-9]/.test(key);
 
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
       if (needMod !== mod) return;
-      if (needShift !== e.shiftKey) return;
+      if (!isSymbolKey && needShift !== e.shiftKey) return;
       if (needAlt !== e.altKey) return;
       const pressed = e.key.toLowerCase();
       const match = key === 'enter' ? pressed === 'enter' : pressed === key;

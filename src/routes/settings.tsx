@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Info } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import type { SiteConfig } from '@/types';
@@ -113,15 +112,6 @@ export default function Settings() {
   return (
     <Page width="text">
       <PageHeader title="Settings" />
-
-      <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-border bg-bg-subtle px-4 py-3 text-sm text-fg-muted">
-        <Info size={16} className="mt-0.5 shrink-0 text-fg-subtle" />
-        <p>
-          Settings live in <code className="font-mono text-fg">config.yaml</code>.
-          Edit them on disk and restart the container. Editable settings are
-          planned for v0.2.
-        </p>
-      </div>
 
       {loading ? (
         <div className="mt-8 space-y-6">

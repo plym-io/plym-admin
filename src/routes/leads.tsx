@@ -659,7 +659,7 @@ function Td({
   return (
     <td
       className={cn(
-        'border-b border-r border-border px-3 py-2 whitespace-nowrap last:border-r-0',
+        'border-b border-r border-border px-3 py-2 align-top whitespace-nowrap last:border-r-0',
         className,
       )}
     >
@@ -684,9 +684,12 @@ function Cell({ column, row }: { column: Column; row: Submission }) {
     return <Td className="text-fg-subtle">—</Td>;
   }
 
+  // Cap wide values at a fixed width and wrap, rather than letting one long
+  // cell stretch the column until the table overflows. The width lives on an
+  // inner div so it's honored under the table's auto layout.
   return (
     <Td className={cn('text-fg', column.mono && 'font-mono text-[13px]')}>
-      {text}
+      <div className="max-w-[360px] break-words whitespace-normal">{text}</div>
     </Td>
   );
 }

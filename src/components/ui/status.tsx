@@ -34,8 +34,8 @@ export function StatusDot({
 }) {
   const meta = STATUS_META[status];
   return (
-    <span className={cn('inline-flex items-center gap-1.5', className)}>
-      <span className={cn('h-2 w-2 rounded-full', meta.dot)} />
+    <span className={cn('inline-flex shrink-0 items-center gap-1.5', className)}>
+      <span className={cn('h-2 w-2 shrink-0 rounded-full', meta.dot)} />
       {showLabel && (
         <span className="text-xs text-fg-muted">{meta.label}</span>
       )}

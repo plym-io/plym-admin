@@ -12,8 +12,8 @@
   --color-fg: #1a1a1a;
   --color-fg-muted: #6b6b6b;
   --color-fg-subtle: #9a9a9a;
-  --color-accent: #e9793a;
-  --color-accent-soft: rgba(233, 121, 58, 0.12);
+  --color-accent: #f43d02;
+  --color-accent-soft: rgba(244, 61, 2, 0.12);
 
   --color-success: #2f7a3e;
   --color-warning: #c97a16;
@@ -65,7 +65,7 @@
 
   /* Custom focus ring — accent at 30% opacity, never the UA default. */
   :focus-visible {
-    outline: 2px solid rgba(233, 121, 58, 0.3);
+    outline: 2px solid rgba(244, 61, 2, 0.3);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
@@ -210,10 +210,10 @@
     box-shadow: 0 0 0 0 var(--color-accent-soft);
   }
   70% {
-    box-shadow: 0 0 0 6px rgba(233, 121, 58, 0);
+    box-shadow: 0 0 0 6px rgba(244, 61, 2, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(233, 121, 58, 0);
+    box-shadow: 0 0 0 0 rgba(244, 61, 2, 0);
   }
 }
 .animate-ring-pulse {

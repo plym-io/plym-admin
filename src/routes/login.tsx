@@ -69,7 +69,7 @@ export default function Login() {
         />
         <div className="absolute left-8 top-8 flex items-center gap-2">
           <img
-            src="/logo.webp"
+            src="/logo.svg"
             alt="plym"
             className="h-9 w-auto"
             onError={(e) => {
@@ -100,7 +100,7 @@ export default function Login() {
         >
           <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
           <p className="mt-1 text-sm text-fg-muted">
-            Welcome back. Let's get you to your drafts.
+            Welcome back.
           </p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-4">

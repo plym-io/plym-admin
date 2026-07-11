@@ -16,11 +16,12 @@ import { usePostsStore } from '@/store/posts';
 import { useAutosave } from '@/hooks/use-autosave';
 import { useShortcut } from '@/hooks/use-shortcut';
 import { slugify, relativeTime, hostname } from '@/lib/format';
-import type { Post, PostStatus } from '@/types';
+import type { Faq, Post, PostStatus } from '@/types';
 import type { components } from '@/api/schema';
 import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
 import { CoverWidget } from '@/components/editor/CoverWidget';
 import { TagsInput } from '@/components/editor/TagsInput';
+import { FaqSection } from '@/components/editor/FaqSection';
 import { StatusPills } from '@/components/editor/StatusPills';
 import { CanonicalField } from '@/components/editor/CanonicalField';
 import { LinkSimple } from '@phosphor-icons/react';
@@ -38,6 +39,7 @@ interface Draft {
   cover: string | null;
   canonical_url: string | null;
   tags: string[];
+  faqs: Faq[];
   status: PostStatus;
 }
 
@@ -49,6 +51,7 @@ const EMPTY: Draft = {
   cover: null,
   canonical_url: null,
   tags: [],
+  faqs: [],
   status: 'draft',
 };
 
@@ -127,7 +130,9 @@ export default function PostEditor() {
         params: { path: { post_id: numId } },
       }),
     )
-      .then((p) => {
+      .then((res) => {
+        // `faqs` isn't in the generated Post schema yet — see the `Post` alias.
+        const p = res as Post;
         if (cancelled) return;
         postIdRef.current = numId;
         hydratedIdRef.current = numId;
@@ -139,6 +144,7 @@ export default function PostEditor() {
           cover: p.cover ?? null,
           canonical_url: p.canonical_url ?? null,
           tags: (p.tags ?? []).map((t) => t.name),
+          faqs: p.faqs ?? [],
           status: p.status,
         };
         draftRef.current = next;
@@ -165,6 +171,9 @@ export default function PostEditor() {
       setSlugError(null);
       setCanonicalError(null);
       const effectiveSlug = d.slug || slugify(d.title);
+      // A blank title or slug is never valid server-side (422) — skip the
+      // request instead of round-tripping a save we know will fail.
+      if (!d.title.trim() || !effectiveSlug.trim()) return;
       const canonicalChanged =
         (d.canonical_url ?? null) !== savedCanonicalRef.current;
       const slugChanged = effectiveSlug !== savedSlugRef.current;
@@ -172,9 +181,11 @@ export default function PostEditor() {
       try {
         if (postIdRef.current === null) {
           // Create on first meaningful keystroke.
-          if (!d.title.trim()) return;
           const created = await call(
             api.POST('/api/posts', {
+              // `faq_ids` isn't in the generated PostCreate type yet (pending a
+              // backend release for post-FAQ association); cast until codegen
+              // picks it up.
               body: {
                 title: d.title,
                 slug: effectiveSlug,
@@ -183,7 +194,8 @@ export default function PostEditor() {
                 cover: d.cover,
                 canonical_url: d.canonical_url,
                 tags: d.tags,
-              },
+                faq_ids: d.faqs.map((f) => f.id),
+              } as components['schemas']['PostCreate'] & { faq_ids: number[] },
             }),
           );
           postIdRef.current = created.id;
@@ -199,9 +211,9 @@ export default function PostEditor() {
           const updated = await call(
             api.PATCH('/api/posts/{post_id}', {
               params: { path: { post_id: postIdRef.current } },
-              // `slug` isn't in the generated PostUpdate type yet (pending a
-              // backend release that accepts it on PATCH); cast until codegen
-              // picks it up.
+              // `slug`/`faq_ids` aren't in the generated PostUpdate type yet
+              // (pending backend releases for slug-on-PATCH and post-FAQ
+              // association); cast until codegen picks them up.
               body: {
                 title: d.title,
                 slug: effectiveSlug,
@@ -211,7 +223,11 @@ export default function PostEditor() {
                 // null explicitly clears it; a string sets it.
                 canonical_url: d.canonical_url,
                 tags: d.tags,
-              } as components['schemas']['PostUpdate'] & { slug: string },
+                faq_ids: d.faqs.map((f) => f.id),
+              } as components['schemas']['PostUpdate'] & {
+                slug: string;
+                faq_ids: number[];
+              },
             }),
           );
           savedCanonicalRef.current = updated.canonical_url ?? null;
@@ -531,6 +547,7 @@ export default function PostEditor() {
             onChange={(s) => void setStatus(s)}
           />
           <TagsInput tags={draft.tags} onChange={(tags) => update({ tags })} />
+          <FaqSection faqs={draft.faqs} onChange={(faqs) => update({ faqs })} />
           <CanonicalField
             value={draft.canonical_url}
             serverError={canonicalError}

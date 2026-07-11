@@ -8,6 +8,8 @@ import {
   Images,
   Target,
   Users as UsersIcon,
+  Question,
+  Tag,
   GearSix,
   PlusCircle,
   UploadSimple,
@@ -175,6 +177,12 @@ export function CommandPalette() {
                       </Command.Item>
                     </>
                   )}
+                  <Command.Item value="faqs questions" onSelect={() => go('/faqs')}>
+                    <Question size={16} /> FAQs
+                  </Command.Item>
+                  <Command.Item value="tags" onSelect={() => go('/tags')}>
+                    <Tag size={16} /> Tags
+                  </Command.Item>
                   <Command.Item value="settings config" onSelect={() => go('/settings')}>
                     <GearSix size={16} /> Settings
                   </Command.Item>

@@ -65,9 +65,6 @@ export default function Home() {
             <span className="block text-[15px] font-semibold text-fg">
               Start a new post
             </span>
-            <span className="block text-sm text-fg-muted">
-              Blank page, blinking cursor. The good part.
-            </span>
           </span>
         </span>
         <span className="flex items-center gap-3 text-fg-subtle">

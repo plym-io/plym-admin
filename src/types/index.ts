@@ -8,7 +8,11 @@ import type { ProfileLink } from '@/lib/profile-links';
 export type User = components['schemas']['User'] & { links?: ProfileLink[] | null };
 export type UserPublic = components['schemas']['UserPublic'];
 export type Role = components['schemas']['Role'];
-export type Post = components['schemas']['Post'];
+export type Faq = components['schemas']['Faq'];
+// `faqs`/`faq_ids` aren't in the generated Post/PostCreate/PostUpdate schemas
+// yet (backend pending); model them as optional until `npm run codegen`
+// picks up the real association endpoint.
+export type Post = components['schemas']['Post'] & { faqs?: Faq[] | null };
 export type PostListItem = components['schemas']['PostListItem'];
 export type PostStatus = components['schemas']['PostStatus'];
 export type PostPage = components['schemas']['PostPage'];

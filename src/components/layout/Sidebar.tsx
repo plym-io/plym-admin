@@ -6,6 +6,8 @@ import {
   Images,
   Target,
   Users as UsersIcon,
+  Question,
+  Tag,
   GearSix,
   type Icon,
 } from '@phosphor-icons/react';
@@ -32,6 +34,8 @@ const SECONDARY: NavItem[] = [
   { to: '/leads', label: 'Leads', icon: Target, adminOnly: true },
   // Everyone can view Users; management actions inside are admin-gated.
   { to: '/users', label: 'Users', icon: UsersIcon },
+  { to: '/faqs', label: 'FAQs', icon: Question },
+  { to: '/tags', label: 'Tags', icon: Tag },
   { to: '/settings', label: 'Settings', icon: GearSix },
 ];
 

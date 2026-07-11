@@ -5,7 +5,8 @@ import CodeMirror, {
 } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
-import { EditorView as CMView } from '@codemirror/view';
+import { EditorView as CMView, keymap } from '@codemirror/view';
+import { Prec } from '@codemirror/state';
 import { toast } from 'sonner';
 import { uploadMedia } from '@/lib/upload';
 import { isApiError } from '@/api/errors';
@@ -274,6 +275,17 @@ export function MarkdownEditor({ value, onChange, editorRef, onScroll }: Props) 
           return false;
         },
       }),
+      // CodeMirror's basicSetup binds Mod-Enter (insertBlankLine) and Mod-/
+      // (toggleComment), which otherwise hijack the app's publish/preview
+      // shortcuts and mutate the document. Mark them handled with no-ops —
+      // no stopPropagation, so the keydown still bubbles to the window-level
+      // useShortcut listeners in posts.editor.tsx.
+      Prec.highest(
+        keymap.of([
+          { key: 'Mod-Enter', run: () => true },
+          { key: 'Mod-/', run: () => true },
+        ]),
+      ),
     ],
     [detectSlash, onScroll],
   );
