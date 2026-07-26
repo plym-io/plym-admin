@@ -13,6 +13,7 @@ import { useAuthStore } from '@/store/auth';
 import { Kbd } from '@/components/ui/kbd';
 import { ProfileSheet } from './ProfileSheet';
 import { cn } from '@/lib/classnames';
+import { asset } from '@/lib/base';
 
 function UserMenu() {
   const user = useAuthStore((s) => s.user);
@@ -135,16 +136,16 @@ export function TopBar() {
         className="flex items-center transition-opacity hover:opacity-95"
       >
         <img
-          src="/logo.svg"
+          src={asset('logo.svg')}
           alt="plym"
           className="h-7 max-h-8 w-auto"
           onError={(e) => {
-            // Fall back to a wordmark if the backend logo isn't proxied.
+            // Fall back to a wordmark if the logo asset isn't there.
             const el = e.currentTarget;
             el.style.display = 'none';
             el.insertAdjacentHTML(
               'afterend',
-              '<span class="font-serif text-lg font-bold tracking-tight">plym</span>',
+              '<span class="font-display text-lg font-bold tracking-tight">plym</span>',
             );
           }}
         />

@@ -19,8 +19,8 @@
   --color-warning: #c97a16;
   --color-danger: #c4321a;
 
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-serif: 'Merriweather', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Archivo', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', 'Archivo', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --radius-sm: 4px;
@@ -55,7 +55,6 @@
     background: var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-sans);
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
   ::selection {
@@ -105,7 +104,7 @@
  * Used by the editor preview pane when the live HTML isn't styled.
  * ------------------------------------------------------------------ */
 .prose-plym {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   color: var(--color-fg);
   line-height: 1.75;
   font-size: 17px;
@@ -114,9 +113,9 @@
 .prose-plym h2,
 .prose-plym h3,
 .prose-plym h4 {
-  font-family: var(--font-sans);
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
   line-height: 1.2;
   margin: 1.6em 0 0.5em;
   color: var(--color-fg);

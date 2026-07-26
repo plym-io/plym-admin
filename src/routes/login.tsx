@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth';
 import { isApiError } from '@/api/errors';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/classnames';
+import { asset } from '@/lib/base';
 
 interface Form {
   email: string;
@@ -69,7 +70,7 @@ export default function Login() {
         />
         <div className="absolute left-8 top-8 flex items-center gap-2">
           <img
-            src="/logo.svg"
+            src={asset('logo.svg')}
             alt="plym"
             className="h-9 w-auto"
             onError={(e) => {
@@ -77,13 +78,13 @@ export default function Login() {
               el.style.display = 'none';
               el.insertAdjacentHTML(
                 'afterend',
-                '<span class="font-serif text-2xl font-bold tracking-tight">plym</span>',
+                '<span class="font-display text-2xl font-bold tracking-tight">plym</span>',
               );
             }}
           />
         </div>
         <div className="absolute bottom-10 left-8 max-w-sm">
-          <p className="font-serif text-2xl leading-snug text-fg">
+          <p className="font-display text-2xl leading-snug text-fg">
             plym helps you get your story the reach it deserves.
           </p>
           <p className="mt-2 text-sm text-fg-muted">

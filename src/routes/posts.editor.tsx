@@ -183,9 +183,9 @@ export default function PostEditor() {
           // Create on first meaningful keystroke.
           const created = await call(
             api.POST('/api/posts', {
-              // `faq_ids` isn't in the generated PostCreate type yet (pending a
-              // backend release for post-FAQ association); cast until codegen
-              // picks it up.
+              // The API takes `faqs` as a list of FAQ ids. It's missing from the
+              // generated PostCreate type (openapi.json is stale) — cast until
+              // codegen picks it up.
               body: {
                 title: d.title,
                 slug: effectiveSlug,
@@ -194,8 +194,8 @@ export default function PostEditor() {
                 cover: d.cover,
                 canonical_url: d.canonical_url,
                 tags: d.tags,
-                faq_ids: d.faqs.map((f) => f.id),
-              } as components['schemas']['PostCreate'] & { faq_ids: number[] },
+                faqs: d.faqs.map((f) => f.id),
+              } as components['schemas']['PostCreate'] & { faqs: number[] },
             }),
           );
           postIdRef.current = created.id;
@@ -211,9 +211,9 @@ export default function PostEditor() {
           const updated = await call(
             api.PATCH('/api/posts/{post_id}', {
               params: { path: { post_id: postIdRef.current } },
-              // `slug`/`faq_ids` aren't in the generated PostUpdate type yet
-              // (pending backend releases for slug-on-PATCH and post-FAQ
-              // association); cast until codegen picks them up.
+              // `slug`/`faqs` aren't in the generated PostUpdate type
+              // (openapi.json is stale); cast until codegen picks them up.
+              // `faqs` is a list of FAQ ids on the way in.
               body: {
                 title: d.title,
                 slug: effectiveSlug,
@@ -223,10 +223,10 @@ export default function PostEditor() {
                 // null explicitly clears it; a string sets it.
                 canonical_url: d.canonical_url,
                 tags: d.tags,
-                faq_ids: d.faqs.map((f) => f.id),
+                faqs: d.faqs.map((f) => f.id),
               } as components['schemas']['PostUpdate'] & {
                 slug: string;
-                faq_ids: number[];
+                faqs: number[];
               },
             }),
           );
@@ -512,7 +512,7 @@ export default function PostEditor() {
               onChange={(e) => update({ title: e.target.value })}
               placeholder="Title"
               rows={1}
-              className="w-full resize-none bg-transparent font-serif text-4xl font-bold leading-tight tracking-tight outline-none placeholder:text-fg-subtle/50"
+              className="w-full resize-none bg-transparent font-display text-4xl font-bold leading-tight tracking-tight outline-none placeholder:text-fg-subtle/50"
             />
             <input
               value={draft.excerpt}

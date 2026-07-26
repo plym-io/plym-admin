@@ -9,9 +9,9 @@ export type User = components['schemas']['User'] & { links?: ProfileLink[] | nul
 export type UserPublic = components['schemas']['UserPublic'];
 export type Role = components['schemas']['Role'];
 export type Faq = components['schemas']['Faq'];
-// `faqs`/`faq_ids` aren't in the generated Post/PostCreate/PostUpdate schemas
-// yet (backend pending); model them as optional until `npm run codegen`
-// picks up the real association endpoint.
+// `faqs` isn't in the generated Post/PostCreate/PostUpdate schemas (openapi.json
+// is stale); model it as optional until `npm run codegen` picks it up. The API
+// returns full FAQ objects on read and takes a list of ids on write.
 export type Post = components['schemas']['Post'] & { faqs?: Faq[] | null };
 export type PostListItem = components['schemas']['PostListItem'];
 export type PostStatus = components['schemas']['PostStatus'];
