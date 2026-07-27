@@ -1132,20 +1132,63 @@
         }
       }
     },
-    "/api/config": {
+    "/api/categories": {
       "get": {
         "tags": [
-          "Config"
+          "Categories"
         ],
-        "summary": "Get Config",
-        "operationId": "get_config_api_config_get",
+        "summary": "List Categories",
+        "operationId": "list_categories_api_categories_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SiteConfig"
+                  "items": {
+                    "$ref": "#/components/schemas/Category"
+                  },
+                  "type": "array",
+                  "title": "Response List Categories Api Categories Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Categories"
+        ],
+        "summary": "Create Category",
+        "operationId": "create_category_api_categories_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1158,13 +1201,53 @@
         ]
       }
     },
-    "/api/tags/{tag_id}": {
+    "/api/categories/{category_id}": {
+      "get": {
+        "tags": [
+          "Categories"
+        ],
+        "summary": "Get Category",
+        "operationId": "get_category_api_categories__category_id__get",
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Category Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
-          "Tags"
+          "Categories"
         ],
-        "summary": "Update Tag",
-        "operationId": "update_tag_api_tags__tag_id__patch",
+        "summary": "Update Category",
+        "operationId": "update_category_api_categories__category_id__patch",
         "security": [
           {
             "JWT": []
@@ -1172,12 +1255,12 @@
         ],
         "parameters": [
           {
-            "name": "tag_id",
+            "name": "category_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Tag Id"
+              "title": "Category Id"
             }
           }
         ],
@@ -1186,7 +1269,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TagUpdate"
+                "$ref": "#/components/schemas/CategoryUpdate"
               }
             }
           }
@@ -1197,10 +1280,48 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Tag"
+                  "$ref": "#/components/schemas/Category"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Categories"
+        ],
+        "summary": "Delete Category",
+        "operationId": "delete_category_api_categories__category_id__delete",
+        "security": [
+          {
+            "JWT": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Category Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -1228,10 +1349,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/Faq"
                   },
+                  "type": "array",
                   "title": "Response List Faqs Api Faqs Get"
                 }
               }
@@ -1245,20 +1366,15 @@
         ],
         "summary": "Create Faq",
         "operationId": "create_faq_api_faqs_post",
-        "security": [
-          {
-            "JWT": []
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/FaqItem"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
@@ -1281,7 +1397,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "JWT": []
+          }
+        ]
       }
     },
     "/api/faqs/{faq_id}": {
@@ -1418,6 +1539,162 @@
           }
         }
       }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Config"
+        ],
+        "summary": "Get Config",
+        "operationId": "get_config_api_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteConfig"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT": []
+          }
+        ]
+      }
+    },
+    "/api/collect": {
+      "post": {
+        "tags": [
+          "Submissions"
+        ],
+        "summary": "Collect",
+        "operationId": "collect_api_collect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionReceipt"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/submissions": {
+      "get": {
+        "tags": [
+          "Submissions"
+        ],
+        "summary": "List Submissions",
+        "operationId": "list_submissions_api_submissions_get",
+        "security": [
+          {
+            "JWT": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/index": {
+      "post": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Build Search Index",
+        "operationId": "build_search_index_api_index_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchIndexBuildResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1461,6 +1738,96 @@
         ],
         "title": "Body_upload_media_api_media_post"
       },
+      "Category": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
+        "title": "Category"
+      },
+      "CategoryCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CategoryCreate"
+      },
+      "CategoryUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "type": "object",
+        "title": "CategoryUpdate"
+      },
       "ColorsConfig": {
         "properties": {
           "primary": {
@@ -1486,6 +1853,74 @@
         },
         "type": "object",
         "title": "ColorsConfig"
+      },
+      "ExtLink": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Type"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "pattern": "^https?://.+",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "url"
+        ],
+        "title": "ExtLink"
+      },
+      "Faq": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "question",
+          "answer"
+        ],
+        "title": "Faq"
+      },
+      "FaqItem": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "answer": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Answer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "answer"
+        ],
+        "title": "FaqItem"
       },
       "FontsConfig": {
         "properties": {
@@ -1758,6 +2193,10 @@
             "type": "string",
             "title": "Slug"
           },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -1802,6 +2241,17 @@
             ],
             "title": "Canonical Url"
           },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          },
           "published_at": {
             "anyOf": [
               {
@@ -1816,6 +2266,16 @@
           },
           "author": {
             "$ref": "#/components/schemas/UserPublic"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "tags": {
             "items": {
@@ -1838,6 +2298,13 @@
               }
             ],
             "title": "Rendered Path"
+          },
+          "faqs": {
+            "items": {
+              "$ref": "#/components/schemas/Faq"
+            },
+            "type": "array",
+            "title": "Faqs"
           }
         },
         "type": "object",
@@ -1846,6 +2313,7 @@
           "updated_at",
           "id",
           "slug",
+          "path",
           "title",
           "status",
           "reading_time",
@@ -1909,12 +2377,41 @@
             ],
             "title": "Canonical Url"
           },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
           "tags": {
             "items": {
               "type": "string"
             },
             "type": "array",
             "title": "Tags"
+          },
+          "faqs": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Faqs"
           }
         },
         "type": "object",
@@ -1943,6 +2440,10 @@
           "slug": {
             "type": "string",
             "title": "Slug"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
           },
           "title": {
             "type": "string",
@@ -1988,6 +2489,17 @@
             ],
             "title": "Canonical Url"
           },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          },
           "published_at": {
             "anyOf": [
               {
@@ -2003,6 +2515,16 @@
           "author": {
             "$ref": "#/components/schemas/UserPublic"
           },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "tags": {
             "items": {
               "$ref": "#/components/schemas/Tag"
@@ -2017,6 +2539,7 @@
           "updated_at",
           "id",
           "slug",
+          "path",
           "title",
           "status",
           "reading_time",
@@ -2149,6 +2672,28 @@
               }
             ]
           },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
           "tags": {
             "anyOf": [
               {
@@ -2162,6 +2707,20 @@
               }
             ],
             "title": "Tags"
+          },
+          "faqs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Faqs"
           }
         },
         "type": "object",
@@ -2305,12 +2864,42 @@
         ],
         "title": "Role"
       },
+      "SearchIndexBuildResult": {
+        "properties": {
+          "documents": {
+            "type": "integer",
+            "title": "Documents"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "documents",
+          "generated_at"
+        ],
+        "title": "SearchIndexBuildResult"
+      },
       "SiteConfig": {
         "properties": {
           "name": {
             "type": "string",
             "title": "Name",
             "default": "Plym"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "website": {
             "type": "string",
@@ -2393,6 +2982,116 @@
         "type": "object",
         "title": "SiteConfig"
       },
+      "Submission": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          },
+          "client_addr": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "ipvanyaddress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Addr"
+          },
+          "additional_ctx": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Ctx"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "payload",
+          "created_at"
+        ],
+        "title": "Submission"
+      },
+      "SubmissionPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Submission"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "SubmissionPage"
+      },
+      "SubmissionReceipt": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at"
+        ],
+        "title": "SubmissionReceipt"
+      },
       "Tag": {
         "properties": {
           "id": {
@@ -2406,17 +3105,6 @@
           "slug": {
             "type": "string",
             "title": "Slug"
-          },
-          "weight": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weight"
           }
         },
         "type": "object",
@@ -2502,6 +3190,13 @@
               }
             ],
             "title": "Avatar Url"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/ExtLink"
+            },
+            "type": "array",
+            "title": "Links"
           }
         },
         "type": "object",
@@ -2597,6 +3292,13 @@
               }
             ],
             "title": "Avatar Url"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/ExtLink"
+            },
+            "type": "array",
+            "title": "Links"
           }
         },
         "type": "object",
@@ -2642,6 +3344,20 @@
               }
             ],
             "title": "Avatar Url"
+          },
+          "links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ExtLink"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Links"
           }
         },
         "type": "object",
@@ -2686,68 +3402,6 @@
           "type"
         ],
         "title": "ValidationError"
-      },
-      "Faq": {
-        "type": "object",
-        "title": "Faq",
-        "required": [
-          "id",
-          "question",
-          "answer"
-        ],
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "question": {
-            "type": "string",
-            "title": "Question"
-          },
-          "answer": {
-            "type": "string",
-            "title": "Answer"
-          }
-        }
-      },
-      "FaqItem": {
-        "type": "object",
-        "title": "FaqItem",
-        "required": [
-          "question",
-          "answer"
-        ],
-        "properties": {
-          "question": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 512,
-            "title": "Question"
-          },
-          "answer": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 4096,
-            "title": "Answer"
-          }
-        }
-      },
-      "TagUpdate": {
-        "type": "object",
-        "title": "TagUpdate",
-        "properties": {
-          "weight": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Weight"
-          }
-        }
       }
     },
     "securitySchemes": {

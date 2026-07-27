@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
+import type { Submission } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import { Page, PageHeader } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
@@ -24,24 +25,8 @@ import { cn } from '@/lib/classnames';
 
 const PAGE_SIZE = 20;
 
-// /api/submissions isn't in the generated OpenAPI client yet, so this route
-// talks to it through a locally-typed cast (mirrors logs.tsx). Remove once the
-// endpoint lands in the schema.
+/** Free-form JSON bag — both `payload` and `additional_ctx` are untyped server-side. */
 type Dict = Record<string, unknown>;
-interface Submission {
-  id: number;
-  payload: Dict | null;
-  user_agent: string | null;
-  client_addr: string | null;
-  additional_ctx: Dict | null;
-  created_at: string;
-}
-interface SubmissionPage {
-  items: Submission[];
-  total: number;
-  page: number;
-  page_size: number;
-}
 
 // A displayed column, resolved from either the payload, additional_ctx, or the
 // fixed metadata fields. `mono` and `time` tune the cell rendering.
@@ -62,7 +47,11 @@ function humanize(key: string) {
 }
 
 /** Stable, first-seen-ordered union of a dict field's keys across rows. */
-function unionKeys(rows: Submission[], pick: (s: Submission) => Dict | null) {
+function unionKeys(
+  rows: Submission[],
+  // `additional_ctx` is optional in the schema, so `pick` may yield undefined.
+  pick: (s: Submission) => Dict | null | undefined,
+) {
   const keys: string[] = [];
   const seen = new Set<string>();
   for (const row of rows) {
@@ -151,10 +140,8 @@ export default function Leads() {
   const filterRef = useDismiss(filterOpen, () => setFilterOpen(false));
 
   const fetchPage = (p: number) =>
-    call<SubmissionPage>(
-      // Cast: endpoint absent from the typed client until the backend adds it.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (api.GET as any)('/api/submissions', {
+    call(
+      api.GET('/api/submissions', {
         params: { query: { page: p, page_size: PAGE_SIZE } },
       }),
     );

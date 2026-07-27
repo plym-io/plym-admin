@@ -9,6 +9,7 @@ const base: PostListItem = {
   updated_at: '2026-01-02T00:00:00Z',
   id: 1,
   slug: 'hello-world',
+  path: '/blog/hello-world',
   title: 'Hello world',
   status: 'published',
   reading_time: 3,

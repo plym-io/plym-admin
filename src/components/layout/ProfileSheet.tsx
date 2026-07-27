@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import type { components } from '@/api/schema';
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import { useAuthStore } from '@/store/auth';
@@ -58,15 +57,13 @@ export function ProfileSheet({
     try {
       const updated = await call(
         api.PATCH('/api/users/me', {
-          // `links` isn't in the generated UserUpdate type yet (backend pending);
-          // cast to send it. Codegen will make this cast unnecessary once shipped.
           body: {
             display_name: values.display_name,
             // Empty strings clear the optional fields.
             bio: values.bio.trim() || null,
             avatar_url: values.avatar_url.trim() || null,
             links: normalized.value,
-          } as components['schemas']['UserUpdate'],
+          },
         }),
       );
       setUser(updated);

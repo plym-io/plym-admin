@@ -19,27 +19,11 @@ export default function Tags() {
       .finally(() => setLoading(false));
   }, []);
 
-  const setWeight = async (tag: Tag, weight: number | null) => {
-    const prev = tag.weight;
-    setTags((ts) => ts.map((t) => (t.id === tag.id ? { ...t, weight } : t)));
-    try {
-      await call(
-        api.PATCH('/api/tags/{tag_id}', {
-          params: { path: { tag_id: tag.id } },
-          body: { weight },
-        }),
-      );
-    } catch (e) {
-      setTags((ts) => ts.map((t) => (t.id === tag.id ? { ...t, weight: prev } : t)));
-      toast.error(isApiError(e) ? e.message : 'Could not update weight');
-    }
-  };
-
   return (
     <Page width="text">
       <PageHeader
         title="Tags"
-        description="Created automatically when used on a post. Set a weight to influence display order."
+        description="Created automatically when used on a post. To control display order, use categories."
       />
 
       {loading ? (
@@ -65,21 +49,6 @@ export default function Tags() {
               <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg-subtle">
                 {t.slug}
               </span>
-              <label className="flex shrink-0 items-center gap-1.5 text-xs text-fg-muted">
-                Weight
-                <input
-                  key={t.weight ?? 'none'}
-                  type="number"
-                  defaultValue={t.weight ?? ''}
-                  placeholder="—"
-                  onBlur={(e) => {
-                    const v = e.target.value.trim();
-                    const next = v === '' ? null : Number(v);
-                    if (next !== t.weight) void setWeight(t, next);
-                  }}
-                  className="h-8 w-16 rounded-md border border-border bg-bg px-2 text-center text-sm text-fg outline-none transition-colors hover:border-border-strong focus:border-accent"
-                />
-              </label>
             </div>
           ))}
         </div>

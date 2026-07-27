@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { MagnifyingGlass } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import type { SiteConfig } from '@/types';
 import { Page, PageHeader } from '@/components/ui/page';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // One-line plain-English descriptions for each config section.
@@ -75,6 +78,51 @@ function Section({
   );
 }
 
+/**
+ * Rebuilds the blog's search index on demand. The API regenerates it on publish,
+ * so this is a repair hatch for when the index drifts from the posts.
+ */
+function SearchIndexCard() {
+  const [busy, setBusy] = useState(false);
+
+  const rebuild = async () => {
+    setBusy(true);
+    try {
+      const res = await call(api.POST('/api/index', {}));
+      toast.success(
+        `Search index rebuilt — ${res.documents} ${
+          res.documents === 1 ? 'document' : 'documents'
+        }.`,
+      );
+    } catch (e) {
+      toast.error(isApiError(e) ? e.message : 'Could not rebuild the search index');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-8 flex items-center gap-4 rounded-lg border border-border p-4">
+      <div className="min-w-0 flex-1">
+        <h2 className="text-[15px] font-semibold tracking-tight text-fg">
+          Search index
+        </h2>
+        <p className="mt-0.5 text-sm text-fg-muted">
+          Rebuild the index that powers search on your blog.
+        </p>
+      </div>
+      <Button
+        variant="ghost"
+        onClick={() => void rebuild()}
+        disabled={busy}
+        className="shrink-0"
+      >
+        <MagnifyingGlass size={16} /> {busy ? 'Rebuilding…' : 'Rebuild'}
+      </Button>
+    </div>
+  );
+}
+
 export default function Settings() {
   const [config, setConfig] = useState<SiteConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +160,8 @@ export default function Settings() {
   return (
     <Page width="text">
       <PageHeader title="Settings" />
+
+      <SearchIndexCard />
 
       {loading ? (
         <div className="mt-8 space-y-6">

@@ -17,10 +17,10 @@ import { useAutosave } from '@/hooks/use-autosave';
 import { useShortcut } from '@/hooks/use-shortcut';
 import { slugify, relativeTime, hostname } from '@/lib/format';
 import type { Faq, Post, PostStatus } from '@/types';
-import type { components } from '@/api/schema';
 import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
 import { CoverWidget } from '@/components/editor/CoverWidget';
 import { TagsInput } from '@/components/editor/TagsInput';
+import { CategoryField } from '@/components/editor/CategoryField';
 import { FaqSection } from '@/components/editor/FaqSection';
 import { StatusPills } from '@/components/editor/StatusPills';
 import { CanonicalField } from '@/components/editor/CanonicalField';
@@ -41,6 +41,8 @@ interface Draft {
   tags: string[];
   faqs: Faq[];
   status: PostStatus;
+  category_id: number | null;
+  weight: number | null;
 }
 
 const EMPTY: Draft = {
@@ -53,6 +55,8 @@ const EMPTY: Draft = {
   tags: [],
   faqs: [],
   status: 'draft',
+  category_id: null,
+  weight: null,
 };
 
 /** True when a 422 names `canonical_url` (so we surface it inline at the field). */
@@ -100,6 +104,9 @@ export default function PostEditor() {
   // Last slug known to be persisted — changing it moves the post's URL, so we
   // re-render the file when it changes (mirrors the canonical refresh).
   const savedSlugRef = useRef<string | null>(null);
+  // The category prefixes the post's path (e.g. "hiring-bias/my-post"), so
+  // moving a post between categories relocates its URL — refresh like a slug.
+  const savedCategoryRef = useRef<number | null>(null);
 
   // Keep the title textarea sized to its content, including after load.
   useEffect(() => {
@@ -130,9 +137,7 @@ export default function PostEditor() {
         params: { path: { post_id: numId } },
       }),
     )
-      .then((res) => {
-        // `faqs` isn't in the generated Post schema yet — see the `Post` alias.
-        const p = res as Post;
+      .then((p) => {
         if (cancelled) return;
         postIdRef.current = numId;
         hydratedIdRef.current = numId;
@@ -146,10 +151,13 @@ export default function PostEditor() {
           tags: (p.tags ?? []).map((t) => t.name),
           faqs: p.faqs ?? [],
           status: p.status,
+          category_id: p.category?.id ?? null,
+          weight: p.weight ?? null,
         };
         draftRef.current = next;
         savedCanonicalRef.current = p.canonical_url ?? null;
         savedSlugRef.current = p.slug;
+        savedCategoryRef.current = p.category?.id ?? null;
         setDraft(next);
         setReadingTime(p.reading_time);
         setSlugTouched(true);
@@ -177,15 +185,14 @@ export default function PostEditor() {
       const canonicalChanged =
         (d.canonical_url ?? null) !== savedCanonicalRef.current;
       const slugChanged = effectiveSlug !== savedSlugRef.current;
+      const categoryChanged = (d.category_id ?? null) !== savedCategoryRef.current;
 
       try {
         if (postIdRef.current === null) {
           // Create on first meaningful keystroke.
           const created = await call(
             api.POST('/api/posts', {
-              // The API takes `faqs` as a list of FAQ ids. It's missing from the
-              // generated PostCreate type (openapi.json is stale) — cast until
-              // codegen picks it up.
+              // `faqs` goes out as a list of FAQ ids; the API returns full objects.
               body: {
                 title: d.title,
                 slug: effectiveSlug,
@@ -193,15 +200,18 @@ export default function PostEditor() {
                 excerpt: d.excerpt || null,
                 cover: d.cover,
                 canonical_url: d.canonical_url,
+                category_id: d.category_id,
+                weight: d.weight,
                 tags: d.tags,
                 faqs: d.faqs.map((f) => f.id),
-              } as components['schemas']['PostCreate'] & { faqs: number[] },
+              },
             }),
           );
           postIdRef.current = created.id;
           hydratedIdRef.current = created.id; // we already hold this post's data
           savedCanonicalRef.current = created.canonical_url ?? null;
           savedSlugRef.current = created.slug;
+          savedCategoryRef.current = created.category?.id ?? null;
           setReadingTime(created.reading_time);
           syncList(created);
           // Swap /posts/new → /posts/:id in place. Same route, so the editor
@@ -211,8 +221,6 @@ export default function PostEditor() {
           const updated = await call(
             api.PATCH('/api/posts/{post_id}', {
               params: { path: { post_id: postIdRef.current } },
-              // `slug`/`faqs` aren't in the generated PostUpdate type
-              // (openapi.json is stale); cast until codegen picks them up.
               // `faqs` is a list of FAQ ids on the way in.
               body: {
                 title: d.title,
@@ -222,22 +230,23 @@ export default function PostEditor() {
                 cover: d.cover,
                 // null explicitly clears it; a string sets it.
                 canonical_url: d.canonical_url,
+                category_id: d.category_id,
+                weight: d.weight,
                 tags: d.tags,
                 faqs: d.faqs.map((f) => f.id),
-              } as components['schemas']['PostUpdate'] & {
-                slug: string;
-                faqs: number[];
               },
             }),
           );
           savedCanonicalRef.current = updated.canonical_url ?? null;
           savedSlugRef.current = updated.slug;
+          savedCategoryRef.current = updated.category?.id ?? null;
           setReadingTime(updated.reading_time);
           syncList(updated);
 
-          // Auto-refresh the rendered file when the canonical URL or slug
-          // changed, so the file on disk stays in step (FOLLOWUP §refresh).
-          if (canonicalChanged || slugChanged) {
+          // Auto-refresh the rendered file when the canonical URL, slug, or
+          // category changed — each moves the post's URL, so the file on disk
+          // would otherwise go stale (FOLLOWUP §refresh).
+          if (canonicalChanged || slugChanged || categoryChanged) {
             await call(
               api.POST('/api/posts/{post_id}/refresh', {
                 params: { path: { post_id: postIdRef.current } },
@@ -267,14 +276,17 @@ export default function PostEditor() {
       updated_at: p.updated_at,
       id: p.id,
       slug: p.slug,
+      path: p.path,
       title: p.title,
       status: p.status,
       reading_time: p.reading_time,
       excerpt: p.excerpt,
       cover: p.cover,
       canonical_url: p.canonical_url,
+      weight: p.weight,
       published_at: p.published_at,
       author: p.author,
+      category: p.category,
       tags: p.tags,
     });
 
@@ -545,6 +557,11 @@ export default function PostEditor() {
             status={draft.status}
             pending={statusPending}
             onChange={(s) => void setStatus(s)}
+          />
+          <CategoryField
+            categoryId={draft.category_id}
+            weight={draft.weight}
+            onChange={(patch) => update(patch)}
           />
           <TagsInput tags={draft.tags} onChange={(tags) => update({ tags })} />
           <FaqSection faqs={draft.faqs} onChange={(faqs) => update({ faqs })} />

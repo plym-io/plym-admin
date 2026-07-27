@@ -10,6 +10,7 @@ import {
   Users as UsersIcon,
   Question,
   Tag,
+  FolderSimple,
   GearSix,
   PlusCircle,
   UploadSimple,
@@ -179,6 +180,12 @@ export function CommandPalette() {
                   )}
                   <Command.Item value="faqs questions" onSelect={() => go('/faqs')}>
                     <Question size={16} /> FAQs
+                  </Command.Item>
+                  <Command.Item
+                    value="categories"
+                    onSelect={() => go('/categories')}
+                  >
+                    <FolderSimple size={16} /> Categories
                   </Command.Item>
                   <Command.Item value="tags" onSelect={() => go('/tags')}>
                     <Tag size={16} /> Tags
