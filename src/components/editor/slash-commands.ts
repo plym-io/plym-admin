@@ -62,8 +62,7 @@ export function clearRange(ctx: SlashContext) {
   ctx.view.focus();
 }
 
-const TABLE_SNIPPET =
-  '| Column | Column |\n| --- | --- |\n| Cell | Cell |\n';
+import { insertTable } from './table-widget';
 
 export const SLASH_COMMANDS: SlashCommand[] = [
   {
@@ -126,11 +125,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: 'table',
     title: 'Table',
-    hint: 'Insert a markdown table',
-    keywords: ['table', 'grid', 'rows'],
+    hint: 'Rows, columns, editable in place',
+    keywords: ['table', 'grid', 'rows', 'columns'],
     icon: Table,
-    // Caret lands on the first header cell ("| " = 2 chars).
-    run: (c) => replaceRange(c, TABLE_SNIPPET, 2),
+    // The caret lands *after* the table so it renders as a grid straight
+    // away; focus then goes to its first header cell.
+    run: (c) => insertTable(c.view, c.from, c.to),
   },
   {
     id: 'divider',

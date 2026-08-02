@@ -21,10 +21,11 @@
 
   --font-sans: 'Archivo', system-ui, -apple-system, sans-serif;
   --font-display: 'Space Grotesk', 'Archivo', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* The writing surface — title, prose and source view all share it, so
-     switching modes doesn't change how the text you're writing looks. */
-  --font-editor: 'Literata', Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --font-mono: 'Google Sans Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The writing surface. Title, excerpt and prose all share it; markdown mode
+     and code switch to the mono above, and that's the whole type system in
+     the editor — two faces. */
+  --font-editor: 'Merriweather', Georgia, 'Iowan Old Style', serif;
 
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -78,18 +79,14 @@
     font-feature-settings: 'tnum';
   }
 
-  /* Thin, restrained scrollbars. */
+  /* No scrollbars anywhere — everything still scrolls, the track just isn't
+     drawn over the writing. */
+  * {
+    scrollbar-width: none;
+  }
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: var(--color-border-strong);
-    border-radius: 999px;
-    border: 3px solid var(--color-bg);
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-fg-subtle);
+    width: 0;
+    height: 0;
   }
 }
 
@@ -182,6 +179,115 @@
   border: none;
   border-top: 1px solid var(--color-border);
   margin: 2em 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Editor tables — the grid that stands in for a markdown pipe table.
+ * Plain CSS on purpose: this markup is built by a CodeMirror widget, not
+ * by React, so it can't use utility classes.
+ * ------------------------------------------------------------------ */
+.cm-md-table-wrap {
+  margin: 0.8em 0;
+  font-family: var(--font-editor);
+  font-size: 0.92em;
+}
+.cm-md-table-el {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+.cm-md-table-el th,
+.cm-md-table-el td {
+  position: relative;
+  border: 1px solid var(--color-border);
+  padding: 0;
+  vertical-align: middle;
+}
+.cm-md-table-el th {
+  background: var(--color-bg-muted);
+  font-weight: 600;
+}
+.cm-md-tcell {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 0.45em 0.6em;
+  font: inherit;
+  color: inherit;
+}
+.cm-md-tcell:focus {
+  background: var(--color-bg-subtle);
+  box-shadow: inset 0 0 0 2px var(--color-border-strong);
+}
+.cm-md-tcell::placeholder {
+  color: var(--color-fg-subtle);
+}
+
+/* Controls: out of the way until the table is hovered. */
+.cm-md-tbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  width: 18px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-fg-subtle);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cm-md-tbtn:hover {
+  background: var(--color-border);
+  color: var(--color-fg);
+}
+.cm-md-tcol-del {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  opacity: 0;
+}
+.cm-md-table-el th:hover .cm-md-tcol-del,
+.cm-md-tcol-del:focus-visible {
+  opacity: 1;
+}
+.cm-md-tadd-col,
+.cm-md-trow-ctl {
+  width: 26px;
+  border: 0 !important;
+  background: transparent !important;
+  text-align: center;
+}
+.cm-md-tadd-col .cm-md-tbtn,
+.cm-md-trow-ctl .cm-md-tbtn {
+  margin: 0 auto;
+  opacity: 0;
+}
+.cm-md-table-wrap:hover .cm-md-tadd-col .cm-md-tbtn,
+.cm-md-table-el tr:hover .cm-md-trow-ctl .cm-md-tbtn {
+  opacity: 1;
+}
+.cm-md-tadd-row {
+  margin-top: 4px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-fg-subtle);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+}
+.cm-md-table-wrap:hover .cm-md-tadd-row {
+  opacity: 1;
+}
+.cm-md-tadd-row:hover {
+  background: var(--color-bg-muted);
+  color: var(--color-fg);
 }
 
 @keyframes plym-shake {

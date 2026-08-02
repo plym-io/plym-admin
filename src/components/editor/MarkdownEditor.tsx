@@ -16,6 +16,10 @@ import { livePreview, proseHighlight } from './live-preview';
 import { SlashMenu } from './SlashMenu';
 import { MediaPicker } from './MediaPicker';
 import { filterCommands, type SlashContext } from './slash-commands';
+import { FormatToolbar, type EditorActions } from './FormatToolbar';
+import { SelectionMenu } from './SelectionMenu';
+import { BOLD, ITALIC, insertLink, run, toggleInline } from './format-commands';
+import { insertTable } from './table-widget';
 
 export type EditorMode = 'wysiwyg' | 'markdown';
 
@@ -59,6 +63,9 @@ export function MarkdownEditor({
   const [slash, setSlash] = useState<SlashState | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [contextAt, setContextAt] = useState<{ x: number; y: number } | null>(
+    null,
+  );
 
   const getView = useCallback(
     () => internalRef.current?.view ?? editorRef?.current?.view ?? null,
@@ -184,6 +191,32 @@ export function MarkdownEditor({
     [getView, prepend, replaceInDoc],
   );
 
+  // ---- toolbar / context-menu actions --------------------------------
+  const actions: EditorActions = useMemo(
+    () => ({
+      inline: (mark) => {
+        const view = getView();
+        if (view) run(view, toggleInline(view.state, mark));
+      },
+      link: () => {
+        const view = getView();
+        if (view) run(view, insertLink(view.state));
+      },
+      upload: () => {
+        const view = getView();
+        pendingPos.current = view?.state.selection.main.head ?? 0;
+        fileInput.current?.click();
+      },
+      table: () => {
+        const view = getView();
+        if (!view) return;
+        const { from, to } = view.state.selection.main;
+        insertTable(view, from, to);
+      },
+    }),
+    [getView],
+  );
+
   // ---- run a slash command ------------------------------------------
   const runCommand = useCallback(
     (index: number) => {
@@ -246,16 +279,21 @@ export function MarkdownEditor({
   );
 
   // ---- theme + extensions -------------------------------------------
-  // A page of prose, not a code buffer: the editor's serif at reading size,
-  // generous leading, and monospace kept for the few places it earns its keep
-  // (inline code, fenced blocks, tables — where alignment is the point).
+  // Two faces, no more: Merriweather for prose, and the mono (Google Sans
+  // Code) for code and for the whole surface in markdown mode, where the
+  // characters you're aligning are the point.
+  const source = mode === 'markdown';
   const theme = useMemo(
     () =>
       CMView.theme({
-        '&': { fontSize: '17px', backgroundColor: 'transparent', height: '100%' },
+        '&': {
+          fontSize: source ? '15px' : '17px',
+          backgroundColor: 'transparent',
+          height: '100%',
+        },
         '.cm-content': {
-          fontFamily: 'var(--font-editor)',
-          lineHeight: '1.75',
+          fontFamily: source ? 'var(--font-mono)' : 'var(--font-editor)',
+          lineHeight: source ? '1.6' : '1.75',
           padding: '8px 4px 40vh',
           caretColor: 'var(--color-accent)',
         },
@@ -268,7 +306,10 @@ export function MarkdownEditor({
         '&.cm-focused .cm-selectionBackground': {
           backgroundColor: 'var(--color-accent-soft) !important',
         },
-        '.cm-scroller': { overflow: 'auto', fontFamily: 'var(--font-editor)' },
+        '.cm-scroller': {
+          overflow: 'auto',
+          fontFamily: source ? 'var(--font-mono)' : 'var(--font-editor)',
+        },
 
         // ---- live preview (WYSIWYG mode) ----
         '.cm-md-h1': {
@@ -310,18 +351,19 @@ export function MarkdownEditor({
           padding: '0.15em 0.35em',
         },
         '.cm-md-link': {
-          color: 'var(--color-accent)',
           textDecoration: 'underline',
           textUnderlineOffset: '2px',
+          textDecorationColor: 'var(--color-border-strong)',
         },
         '.cm-md-url': {
           fontFamily: 'var(--font-mono)',
           fontSize: '0.82em',
           color: 'var(--color-fg-subtle)',
         },
-        '.cm-md-list-mark': { color: 'var(--color-accent)' },
+        '.cm-md-list-mark': { color: 'var(--color-fg-muted)' },
+        '.cm-md-bullet': { color: 'var(--color-fg-muted)' },
         '.cm-md-quote': {
-          borderLeft: '3px solid var(--color-accent)',
+          borderLeft: '3px solid var(--color-border-strong)',
           paddingLeft: '0.9em',
           fontStyle: 'italic',
           color: 'var(--color-fg-muted)',
@@ -347,7 +389,7 @@ export function MarkdownEditor({
           margin: '0.4em 0',
         },
       }),
-    [],
+    [source],
   );
 
   const extensions = useMemo(
@@ -383,6 +425,22 @@ export function MarkdownEditor({
         keymap.of([
           { key: 'Mod-Enter', run: () => true },
           { key: 'Mod-/', run: () => true },
+          // The window-level shortcuts ignore keys pressed inside .cm-editor,
+          // so ⌘B is ours here and still toggles the sidebar everywhere else.
+          {
+            key: 'Mod-b',
+            run: (v) => {
+              run(v, toggleInline(v.state, BOLD));
+              return true;
+            },
+          },
+          {
+            key: 'Mod-i',
+            run: (v) => {
+              run(v, toggleInline(v.state, ITALIC));
+              return true;
+            },
+          },
         ]),
       ),
     ],
@@ -419,10 +477,25 @@ export function MarkdownEditor({
     [insertAtCursor, uploadAndInsertAt, getView],
   );
 
+  /** Right-click over a selection gets our menu; anything else stays native. */
+  const onContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const view = getView();
+      if (!view || view.state.selection.main.empty) return;
+      if (!(e.target instanceof Node) || !view.contentDOM.contains(e.target)) {
+        return;
+      }
+      e.preventDefault();
+      setContextAt({ x: e.clientX, y: e.clientY });
+    },
+    [getView],
+  );
+
   return (
     <div
-      className="relative h-full overflow-hidden"
+      className="flex h-full flex-col"
       onKeyDownCapture={onKeyDownCapture}
+      onContextMenu={onContextMenu}
       onDrop={handleDrop}
       onDragOver={(e) => {
         if (
@@ -433,6 +506,8 @@ export function MarkdownEditor({
         }
       }}
     >
+      <FormatToolbar actions={actions} />
+
       <input
         ref={fileInput}
         type="file"
@@ -447,22 +522,24 @@ export function MarkdownEditor({
         }}
       />
 
-      <CodeMirror
-        ref={setRefs}
-        value={value}
-        onChange={onChange}
-        height="100%"
-        theme={theme}
-        basicSetup={{
-          lineNumbers: false,
-          foldGutter: false,
-          highlightActiveLine: false,
-          highlightActiveLineGutter: false,
-          drawSelection: true,
-        }}
-        extensions={extensions}
-        className="h-full"
-      />
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <CodeMirror
+          ref={setRefs}
+          value={value}
+          onChange={onChange}
+          height="100%"
+          theme={theme}
+          basicSetup={{
+            lineNumbers: false,
+            foldGutter: false,
+            highlightActiveLine: false,
+            highlightActiveLineGutter: false,
+            drawSelection: true,
+          }}
+          extensions={extensions}
+          className="h-full"
+        />
+      </div>
 
       {menuVisible && slash && (
         <SlashMenu
@@ -471,6 +548,15 @@ export function MarkdownEditor({
           coords={slash.coords}
           onSelect={(cmd) => runCommand(filtered.indexOf(cmd))}
           onHover={setActiveIndex}
+        />
+      )}
+
+      {contextAt && (
+        <SelectionMenu
+          x={contextAt.x}
+          y={contextAt.y}
+          actions={actions}
+          onClose={() => setContextAt(null)}
         />
       )}
 

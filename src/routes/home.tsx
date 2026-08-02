@@ -42,7 +42,7 @@ export default function Home() {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="font-display text-3xl font-bold tracking-tight"
+        className="font-editor text-3xl font-bold tracking-tight"
       >
         {timeGreeting()}
         {user?.display_name ? `, ${user.display_name.split(' ')[0]}.` : '.'}

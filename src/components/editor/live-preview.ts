@@ -9,6 +9,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
+import { tableIsRendered, tablePreview } from './table-widget';
 
 /**
  * "WYSIWYG" over a markdown document, the way Obsidian and Typora do it: the
@@ -50,6 +51,22 @@ const LINK = mark('cm-md-link');
 const LIST_MARK = mark('cm-md-list-mark');
 const URL_MARK = mark('cm-md-url');
 
+const BULLET = /^[-*+]$/;
+
+/** The `-` of a bullet list, drawn as a bullet. */
+class BulletWidget extends WidgetType {
+  eq() {
+    return true;
+  }
+
+  toDOM() {
+    const span = document.createElement('span');
+    span.className = 'cm-md-bullet';
+    span.textContent = '•';
+    return span;
+  }
+}
+
 class ImageWidget extends WidgetType {
   constructor(
     readonly url: string,
@@ -88,6 +105,11 @@ class ImageWidget extends WidgetType {
 /** True when the selection is inside (or touching) this range — reveal source. */
 function selectionTouches(state: EditorState, from: number, to: number): boolean {
   return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
+}
+
+/** True when the selection actually reaches into this range (touching doesn't count). */
+function selectionInside(state: EditorState, from: number, to: number): boolean {
+  return state.selection.ranges.some((r) => r.from < to && r.to > from);
 }
 
 /** True when the selection sits on any line this range covers. */
@@ -148,14 +170,32 @@ function build(view: EditorView): DecorationSet {
             eachLine(node.from, node.to, line('cm-md-codeblock'));
             return;
           case 'Table':
+            // A table with the caret outside it is drawn as a real grid by
+            // the table field; leave both it and its cells alone.
+            if (tableIsRendered(state, node.from, node.to)) return false;
             eachLine(node.from, node.to, line('cm-md-table'));
             return;
           case 'HorizontalRule':
             eachLine(node.from, node.to, line('cm-md-hr'));
             return;
-          case 'ListMark':
-            decos.push(LIST_MARK.range(node.from, node.to));
+          case 'ListMark': {
+            const src = state.doc.sliceString(node.from, node.to);
+            // A bullet reads as a bullet; "1." is already what it should be.
+            if (
+              BULLET.test(src) &&
+              !selectionOnLines(state, node.from, node.to)
+            ) {
+              decos.push(
+                Decoration.replace({ widget: new BulletWidget() }).range(
+                  node.from,
+                  node.to,
+                ),
+              );
+            } else {
+              decos.push(LIST_MARK.range(node.from, node.to));
+            }
             return;
+          }
           case 'Link':
             decos.push(LINK.range(node.from, node.to));
             return;
@@ -191,14 +231,21 @@ function build(view: EditorView): DecorationSet {
         // hiding it would leave a bare empty line. Inline backticks go.
         if (name === 'CodeMark' && parent?.name !== 'InlineCode') return;
 
-        // A marker hides only while the caret is away from what it marks: for
-        // inline syntax that's the construct itself, for a heading or a quote
-        // it's the whole line, so `##` doesn't flicker back mid-word.
+        // How far the caret has to be for a marker to hide:
+        //  · heading/quote — off the line entirely, so `##` doesn't flicker
+        //    back mid-word;
+        //  · link — outside the whole link, so the brackets and the URL they
+        //    hide always come back together;
+        //  · emphasis, strike, code — actually inside the word. Sitting at
+        //    either end of a bold run isn't editing it, so the asterisks
+        //    stay hidden as you write past them.
         const scope = parent ?? node.node;
         const away =
           name === 'HeaderMark' || name === 'QuoteMark'
             ? !selectionOnLines(state, scope.from, scope.to)
-            : !selectionTouches(state, scope.from, scope.to);
+            : name === 'LinkMark'
+              ? !selectionTouches(state, scope.from, scope.to)
+              : !selectionInside(state, scope.from, scope.to);
         if (!away) return;
 
         // `## ` — the separating space goes with the hashes, or the heading
@@ -227,14 +274,13 @@ export const proseHighlight: Extension = syntaxHighlighting(
     { tag: t.strong, fontWeight: '700' },
     { tag: t.emphasis, fontStyle: 'italic' },
     { tag: t.strikethrough, textDecoration: 'line-through' },
-    { tag: t.link, color: 'var(--color-accent)' },
+    { tag: t.link, color: 'var(--color-fg)' },
     { tag: t.url, color: 'var(--color-fg-subtle)' },
-    { tag: t.monospace, fontFamily: 'var(--font-mono)' },
     { tag: t.quote, color: 'var(--color-fg-muted)' },
     // The `#`, `**` and `>` characters — present in source mode, faded.
     { tag: t.processingInstruction, color: 'var(--color-fg-subtle)' },
     { tag: t.contentSeparator, color: 'var(--color-fg-subtle)' },
-    { tag: t.keyword, color: 'var(--color-accent)' },
+    { tag: t.keyword, color: 'var(--color-fg-muted)' },
     { tag: [t.string, t.special(t.string)], color: 'var(--color-success)' },
     { tag: t.comment, color: 'var(--color-fg-subtle)', fontStyle: 'italic' },
     { tag: [t.number, t.bool, t.null], color: 'var(--color-warning)' },
@@ -242,11 +288,7 @@ export const proseHighlight: Extension = syntaxHighlighting(
   ]),
 );
 
-/**
- * Rendered markdown, live. Not registered at all in source mode, so the raw
- * document is exactly what you see.
- */
-export const livePreview: Extension = ViewPlugin.fromClass(
+const inlinePreview: Extension = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
 
@@ -264,3 +306,10 @@ export const livePreview: Extension = ViewPlugin.fromClass(
   },
   { decorations: (v) => v.decorations },
 );
+
+/**
+ * Rendered markdown, live. Not registered at all in source mode, so the raw
+ * document is exactly what you see. Tables come from their own state field:
+ * a block widget can't be produced by a view plugin.
+ */
+export const livePreview: Extension = [tablePreview, inlinePreview];
