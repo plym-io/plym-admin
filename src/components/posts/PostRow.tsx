@@ -16,7 +16,7 @@ import { STATUS_META } from '@/components/ui/status';
 import { ConfirmButton } from '@/components/ui/confirm';
 import { KebabMenu, type KebabMenuItem } from '@/components/ui/kebab-menu';
 import { shortDate, hostname } from '@/lib/format';
-import { apiBase } from '@/lib/base';
+import { liveUrl } from '@/lib/base';
 import { cn } from '@/lib/classnames';
 
 interface Props {
@@ -119,7 +119,7 @@ export function PostRow({
         {isPublished ? (
           <button
             onClick={stop(() =>
-              window.open(`${apiBase}/${post.slug}`, '_blank', 'noopener'),
+              window.open(liveUrl(post.path), '_blank', 'noopener'),
             )}
             title="View live post"
             aria-label="View live post"

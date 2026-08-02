@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { PostRow } from './PostRow';
 import type { PostListItem } from '@/types';
@@ -34,6 +35,27 @@ function renderRow(post: PostListItem) {
     </MemoryRouter>,
   );
 }
+
+describe('PostRow live link', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('opens the category-prefixed path, not the bare slug', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    renderRow({
+      ...base,
+      slug: 'understanding-hiring-bias',
+      path: 'hiring-bias/understanding-hiring-bias',
+    });
+
+    await userEvent.click(screen.getByLabelText('View live post'));
+
+    expect(open).toHaveBeenCalledWith(
+      '/hiring-bias/understanding-hiring-bias',
+      '_blank',
+      'noopener',
+    );
+  });
+});
 
 describe('PostRow canonical indicator', () => {
   it('shows the LinkSimple indicator when canonical_url is set', () => {
