@@ -5,9 +5,12 @@ import { Sidebar } from './Sidebar';
 import { CommandPalette } from '@/components/command/CommandPalette';
 import { ShortcutsHelp } from '@/components/command/ShortcutsHelp';
 import { useGlobalShortcuts } from '@/hooks/use-global-shortcuts';
+import { useUiStore } from '@/store/ui';
 
 export function AppShell() {
   const location = useLocation();
+  // Distraction-free mode: the writing surface is the whole window.
+  const focusMode = useUiStore((s) => s.focusMode);
   useGlobalShortcuts();
 
   // Fade each route in on enter. We deliberately avoid AnimatePresence
@@ -23,9 +26,9 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-bg">
-      <TopBar />
+      {!focusMode && <TopBar />}
       <div className="flex min-h-0 flex-1">
-        <Sidebar />
+        {!focusMode && <Sidebar />}
         <main className="min-w-0 flex-1 overflow-y-auto">
           <motion.div
             key={transitionKey}

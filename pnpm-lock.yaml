@@ -11,6 +11,9 @@ importers:
       '@codemirror/lang-markdown':
         specifier: ^6.3.1
         version: 6.5.0
+      '@codemirror/language':
+        specifier: ^6.12.3
+        version: 6.12.3
       '@codemirror/language-data':
         specifier: ^6.5.1
         version: 6.5.2
@@ -20,6 +23,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.36.2
         version: 6.43.0
+      '@lezer/highlight':
+        specifier: ^1.2.3
+        version: 1.2.3
       '@phosphor-icons/react':
         specifier: ^2.1.7
         version: 2.1.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

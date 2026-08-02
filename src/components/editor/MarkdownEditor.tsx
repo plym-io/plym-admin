@@ -12,15 +12,24 @@ import { uploadMedia } from '@/lib/upload';
 import { isApiError } from '@/api/errors';
 import { useMediaStore } from '@/store/media';
 import type { MediaItem } from '@/types';
+import { livePreview, proseHighlight } from './live-preview';
 import { SlashMenu } from './SlashMenu';
 import { MediaPicker } from './MediaPicker';
 import { filterCommands, type SlashContext } from './slash-commands';
+
+export type EditorMode = 'wysiwyg' | 'markdown';
 
 interface Props {
   value: string;
   onChange: (value: string) => void;
   editorRef?: React.RefObject<ReactCodeMirrorRef | null>;
   onScroll?: (fraction: number) => void;
+  /**
+   * `wysiwyg` renders the markdown in place (see live-preview); `markdown`
+   * shows the raw source. Same document either way — only the rendering
+   * differs — so switching is free and lossless.
+   */
+  mode?: EditorMode;
 }
 
 interface SlashState {
@@ -35,7 +44,13 @@ interface SlashState {
  * selection. Supports drag/drop image upload and a Notion-style "/" command
  * menu (headings, table, code, lists, media, image upload, …).
  */
-export function MarkdownEditor({ value, onChange, editorRef, onScroll }: Props) {
+export function MarkdownEditor({
+  value,
+  onChange,
+  editorRef,
+  onScroll,
+  mode = 'wysiwyg',
+}: Props) {
   const prepend = useMediaStore((s) => s.prepend);
   const internalRef = useRef<ReactCodeMirrorRef | null>(null);
   const pendingPos = useRef<number | null>(null);
@@ -231,17 +246,20 @@ export function MarkdownEditor({ value, onChange, editorRef, onScroll }: Props) 
   );
 
   // ---- theme + extensions -------------------------------------------
+  // A page of prose, not a code buffer: the editor's serif at reading size,
+  // generous leading, and monospace kept for the few places it earns its keep
+  // (inline code, fenced blocks, tables — where alignment is the point).
   const theme = useMemo(
     () =>
       CMView.theme({
-        '&': { fontSize: '15px', backgroundColor: 'transparent', height: '100%' },
+        '&': { fontSize: '17px', backgroundColor: 'transparent', height: '100%' },
         '.cm-content': {
-          fontFamily: 'var(--font-mono)',
-          lineHeight: '1.7',
+          fontFamily: 'var(--font-editor)',
+          lineHeight: '1.75',
           padding: '8px 4px 40vh',
           caretColor: 'var(--color-accent)',
         },
-        '.cm-cursor': { borderLeftColor: 'var(--color-accent)' },
+        '.cm-cursor': { borderLeftColor: 'var(--color-accent)', borderLeftWidth: '2px' },
         '&.cm-focused': { outline: 'none' },
         '.cm-line': { padding: '0' },
         '.cm-selectionBackground, ::selection': {
@@ -250,7 +268,84 @@ export function MarkdownEditor({ value, onChange, editorRef, onScroll }: Props) 
         '&.cm-focused .cm-selectionBackground': {
           backgroundColor: 'var(--color-accent-soft) !important',
         },
-        '.cm-scroller': { overflow: 'auto', fontFamily: 'var(--font-mono)' },
+        '.cm-scroller': { overflow: 'auto', fontFamily: 'var(--font-editor)' },
+
+        // ---- live preview (WYSIWYG mode) ----
+        '.cm-md-h1': {
+          fontSize: '1.9em',
+          fontWeight: '700',
+          lineHeight: '1.25',
+          letterSpacing: '-0.02em',
+          padding: '0.7em 0 0.15em',
+        },
+        '.cm-md-h2': {
+          fontSize: '1.5em',
+          fontWeight: '700',
+          lineHeight: '1.3',
+          letterSpacing: '-0.015em',
+          padding: '0.6em 0 0.12em',
+        },
+        '.cm-md-h3': {
+          fontSize: '1.25em',
+          fontWeight: '600',
+          lineHeight: '1.35',
+          padding: '0.55em 0 0.1em',
+        },
+        '.cm-md-h4, .cm-md-h5, .cm-md-h6': {
+          fontSize: '1.08em',
+          fontWeight: '600',
+          padding: '0.5em 0 0.1em',
+        },
+        '.cm-md-em': { fontStyle: 'italic' },
+        '.cm-md-strong': { fontWeight: '700' },
+        '.cm-md-strike': {
+          textDecoration: 'line-through',
+          color: 'var(--color-fg-subtle)',
+        },
+        '.cm-md-code': {
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.85em',
+          backgroundColor: 'var(--color-bg-muted)',
+          borderRadius: '4px',
+          padding: '0.15em 0.35em',
+        },
+        '.cm-md-link': {
+          color: 'var(--color-accent)',
+          textDecoration: 'underline',
+          textUnderlineOffset: '2px',
+        },
+        '.cm-md-url': {
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.82em',
+          color: 'var(--color-fg-subtle)',
+        },
+        '.cm-md-list-mark': { color: 'var(--color-accent)' },
+        '.cm-md-quote': {
+          borderLeft: '3px solid var(--color-accent)',
+          paddingLeft: '0.9em',
+          fontStyle: 'italic',
+          color: 'var(--color-fg-muted)',
+        },
+        '.cm-md-codeblock': {
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.85em',
+          lineHeight: '1.6',
+          backgroundColor: 'var(--color-bg-muted)',
+        },
+        '.cm-md-table': {
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.85em',
+        },
+        '.cm-md-hr': {
+          color: 'var(--color-fg-subtle)',
+          borderBottom: '1px solid var(--color-border-strong)',
+        },
+        '.cm-md-image img': {
+          display: 'block',
+          maxWidth: '100%',
+          borderRadius: 'var(--radius-lg, 8px)',
+          margin: '0.4em 0',
+        },
       }),
     [],
   );
@@ -259,6 +354,10 @@ export function MarkdownEditor({ value, onChange, editorRef, onScroll }: Props) 
     () => [
       markdown({ base: markdownLanguage, codeLanguages: languages }),
       EditorView.lineWrapping,
+      // Registered in both modes — basicSetup's default style is a `fallback`,
+      // so this simply takes precedence over it.
+      proseHighlight,
+      ...(mode === 'wysiwyg' ? [livePreview] : []),
       CMView.updateListener.of((u) => {
         if (u.docChanged || u.selectionSet || u.focusChanged || u.geometryChanged) {
           detectSlash(u.view);
@@ -287,7 +386,7 @@ export function MarkdownEditor({ value, onChange, editorRef, onScroll }: Props) 
         ]),
       ),
     ],
-    [detectSlash, onScroll],
+    [detectSlash, onScroll, mode],
   );
 
   // ---- drag & drop ---------------------------------------------------

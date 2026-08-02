@@ -8,16 +8,21 @@ import {
   ArrowsClockwise,
   ArrowSquareOut,
   CloudCheck,
+  CornersIn,
+  CornersOut,
+  MarkdownLogo,
+  TextAa,
 } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
-import { apiBase } from '@/lib/base';
+import { liveUrl } from '@/lib/base';
 import { isApiError } from '@/api/errors';
 import { usePostsStore } from '@/store/posts';
+import { useUiStore } from '@/store/ui';
 import { useAutosave } from '@/hooks/use-autosave';
 import { useShortcut } from '@/hooks/use-shortcut';
 import { slugify, relativeTime, hostname } from '@/lib/format';
 import type { Faq, Post, PostStatus } from '@/types';
-import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
+import { MarkdownEditor, type EditorMode } from '@/components/editor/MarkdownEditor';
 import { CoverWidget } from '@/components/editor/CoverWidget';
 import { TagsInput } from '@/components/editor/TagsInput';
 import { CategoryField } from '@/components/editor/CategoryField';
@@ -86,6 +91,15 @@ export default function PostEditor() {
   // right after create (when the id param flips from "new" to the real id).
   const hydratedIdRef = useRef<number | 'new' | null>(isNew ? 'new' : null);
   const upsertList = usePostsStore((s) => s.upsert);
+  const focusMode = useUiStore((s) => s.focusMode);
+  const setFocusMode = useUiStore((s) => s.setFocusMode);
+  const toggleFocusMode = useUiStore((s) => s.toggleFocusMode);
+  const editorMode = useUiStore((s) => s.editorMode);
+  const toggleEditorMode = useUiStore((s) => s.toggleEditorMode);
+
+  // Focus mode belongs to the editor, not to the app — leaving here restores
+  // the chrome, so you can never get stranded in a chromeless Settings page.
+  useEffect(() => () => setFocusMode(false), [setFocusMode]);
 
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [loading, setLoading] = useState(!isNew);
@@ -94,6 +108,10 @@ export default function PostEditor() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [statusPending, setStatusPending] = useState(false);
   const [canonicalError, setCanonicalError] = useState<string | null>(null);
+  // Server-rendered location of the post ("<category>/<slug>"), straight from
+  // the API. Only what has been persisted actually exists on the site, so this
+  // tracks save responses rather than the draft.
+  const [livePath, setLivePath] = useState<string | null>(null);
   const cmRef = useRef<ReactCodeMirrorRef | null>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const draftRef = useRef<Draft>(EMPTY);
@@ -160,6 +178,7 @@ export default function PostEditor() {
         savedCategoryRef.current = p.category?.id ?? null;
         setDraft(next);
         setReadingTime(p.reading_time);
+        setLivePath(p.path);
         setSlugTouched(true);
       })
       .catch((e) => {
@@ -213,6 +232,7 @@ export default function PostEditor() {
           savedSlugRef.current = created.slug;
           savedCategoryRef.current = created.category?.id ?? null;
           setReadingTime(created.reading_time);
+          setLivePath(created.path);
           syncList(created);
           // Swap /posts/new → /posts/:id in place. Same route, so the editor
           // keeps its state (and the back button stays sane).
@@ -241,6 +261,7 @@ export default function PostEditor() {
           savedSlugRef.current = updated.slug;
           savedCategoryRef.current = updated.category?.id ?? null;
           setReadingTime(updated.reading_time);
+          setLivePath(updated.path);
           syncList(updated);
 
           // Auto-refresh the rendered file when the canonical URL, slug, or
@@ -325,6 +346,7 @@ export default function PostEditor() {
             body: { status },
           }),
         );
+        setLivePath(updated.path);
         syncList(updated);
         await call(
           api.POST('/api/posts/{post_id}/refresh', {
@@ -415,20 +437,34 @@ export default function PostEditor() {
     { allowInInput: true },
   );
   useShortcut('mod+/', () => openPreview(), { allowInInput: true });
+  useShortcut('mod+shift+f', () => toggleFocusMode(), { allowInInput: true });
+  useShortcut('mod+shift+m', () => toggleEditorMode(), { allowInInput: true });
+  useShortcut('escape', () => setFocusMode(false), {
+    allowInInput: true,
+    enabled: focusMode,
+  });
 
   if (loading) return <EditorSkeleton />;
 
   return (
     <div className="flex h-full flex-col">
-      {/* Top bar */}
+      {/* Top bar. In focus mode it keeps only what writing needs: the two
+          editing modes, preview, save, and the way back out. */}
       <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
-        <button
-          onClick={() => navigate('/posts')}
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+        {!focusMode && (
+          <button
+            onClick={() => navigate('/posts')}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+          >
+            <ArrowLeft size={16} /> Posts
+          </button>
+        )}
+        <div
+          className={cn(
+            'flex min-w-0 items-center gap-1.5 text-sm text-fg-subtle',
+            focusMode && 'hidden',
+          )}
         >
-          <ArrowLeft size={16} /> Posts
-        </button>
-        <div className="flex min-w-0 items-center gap-1.5 text-sm text-fg-subtle">
           <span className="shrink-0">Slug:</span>
           <input
             value={draft.slug}
@@ -443,13 +479,11 @@ export default function PostEditor() {
               slugError && 'border-danger text-danger',
             )}
           />
-          {draft.slug && (
+          {livePath && (
             <button
               type="button"
-              onClick={() =>
-                window.open(`${apiBase}/${draft.slug}`, '_blank', 'noopener')
-              }
-              title="Open post in a new tab"
+              onClick={() => window.open(liveUrl(livePath), '_blank', 'noopener')}
+              title={`Open ${livePath} in a new tab`}
               aria-label="Open post in a new tab"
               className="shrink-0 rounded p-1 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg"
             >
@@ -492,6 +526,7 @@ export default function PostEditor() {
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          <ModeToggle mode={editorMode} onToggle={toggleEditorMode} />
           <Button
             variant="ghost"
             size="sm"
@@ -505,6 +540,24 @@ export default function PostEditor() {
             <ArrowsClockwise size={15} /> Save
             <Kbd keys="mod+s" />
           </Button>
+          <button
+            type="button"
+            onClick={toggleFocusMode}
+            title={
+              focusMode
+                ? 'Leave distraction-free mode (Esc)'
+                : 'Distraction-free mode'
+            }
+            aria-label={
+              focusMode
+                ? 'Leave distraction-free mode'
+                : 'Enter distraction-free mode'
+            }
+            aria-pressed={focusMode}
+            className="rounded-md p-1.5 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg"
+          >
+            {focusMode ? <CornersIn size={17} /> : <CornersOut size={17} />}
+          </button>
         </div>
       </div>
       {slugError && (
@@ -524,13 +577,15 @@ export default function PostEditor() {
               onChange={(e) => update({ title: e.target.value })}
               placeholder="Title"
               rows={1}
-              className="w-full resize-none bg-transparent font-display text-4xl font-bold leading-tight tracking-tight outline-none placeholder:text-fg-subtle/50"
+              // Same face as the body below it, so the page reads as one piece
+              // of writing rather than a form field above a document.
+              className="w-full resize-none bg-transparent font-editor text-[2.4rem] font-bold leading-[1.15] tracking-[-0.02em] outline-none placeholder:text-fg-subtle/50"
             />
             <input
               value={draft.excerpt}
               onChange={(e) => update({ excerpt: e.target.value })}
               placeholder="Add a one-line excerpt…"
-              className="mt-3 w-full bg-transparent text-[15px] text-fg-muted outline-none placeholder:text-fg-subtle/60"
+              className="mt-3 w-full bg-transparent font-editor text-[17px] italic text-fg-muted outline-none placeholder:not-italic placeholder:text-fg-subtle/60"
             />
           </div>
 
@@ -540,15 +595,25 @@ export default function PostEditor() {
                 value={draft.content}
                 onChange={(content) => update({ content })}
                 editorRef={cmRef}
+                mode={editorMode}
               />
             </div>
           </div>
 
-          <SaveLine state={autosave.state} savedAt={autosave.savedAt} />
+          <SaveLine
+            state={autosave.state}
+            savedAt={autosave.savedAt}
+            minimal={focusMode}
+          />
         </div>
 
         {/* Right rail */}
-        <aside className="hidden w-72 shrink-0 space-y-6 overflow-y-auto border-l border-border bg-bg-subtle p-5 lg:block">
+        <aside
+          className={cn(
+            'hidden w-72 shrink-0 space-y-6 overflow-y-auto border-l border-border bg-bg-subtle p-5',
+            !focusMode && 'lg:block',
+          )}
+        >
           <CoverWidget
             cover={draft.cover}
             onChange={(url) => update({ cover: url })}
@@ -591,12 +656,60 @@ export default function PostEditor() {
   );
 }
 
+/**
+ * Rendered-markdown vs raw source. The document is markdown either way, so
+ * this is a view switch, not a conversion — nothing can be lost by flipping it.
+ */
+function ModeToggle({
+  mode,
+  onToggle,
+}: {
+  mode: EditorMode;
+  onToggle: () => void;
+}) {
+  const wysiwyg = mode === 'wysiwyg';
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      role="switch"
+      aria-checked={wysiwyg}
+      title={
+        wysiwyg
+          ? 'Showing rendered markdown — switch to the source'
+          : 'Showing markdown source — switch to rendered'
+      }
+      className="flex items-center gap-1 rounded-md border border-border p-0.5 text-fg-subtle"
+    >
+      <span
+        className={cn(
+          'flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors',
+          wysiwyg ? 'bg-bg-muted text-fg' : 'hover:text-fg',
+        )}
+      >
+        <TextAa size={14} /> Rich
+      </span>
+      <span
+        className={cn(
+          'flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors',
+          wysiwyg ? 'hover:text-fg' : 'bg-bg-muted text-fg',
+        )}
+      >
+        <MarkdownLogo size={14} /> Markdown
+      </span>
+    </button>
+  );
+}
+
 function SaveLine({
   state,
   savedAt,
+  minimal,
 }: {
   state: ReturnType<typeof useAutosave>['state'];
   savedAt: Date | null;
+  /** Drop the keyboard hint — focus mode keeps only the writing feedback. */
+  minimal?: boolean;
 }) {
   // Re-render every 5s so "Saved Ns ago" stays honest.
   const [, tick] = useState(0);
@@ -629,9 +742,11 @@ function SaveLine({
         {state === 'saved' && <CloudCheck size={13} className="text-success" />}
         {label}
       </motion.span>
-      <span className="ml-auto">
-        Press <Kbd keys="mod+s" /> to refresh the rendered file
-      </span>
+      {!minimal && (
+        <span className="ml-auto">
+          Press <Kbd keys="mod+s" /> to refresh the rendered file
+        </span>
+      )}
     </div>
   );
 }

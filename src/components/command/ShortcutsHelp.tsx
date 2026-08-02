@@ -18,6 +18,8 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
       ['mod+s', 'Save & refresh rendered file'],
       ['mod+enter', 'Publish / unpublish'],
       ['mod+/', 'Open preview in a new tab'],
+      ['mod+shift+f', 'Distraction-free mode (Esc to leave)'],
+      ['mod+shift+m', 'Rendered markdown / source'],
     ],
   },
 ];
