@@ -1,14 +1,31 @@
-import { useAuthStore } from '@/store/auth';
 import { apiBase } from '@/lib/base';
+import { freshAccessToken, renewSession } from '@/api/client';
 import type { MediaItem } from '@/types';
 import { normalizeError, type ApiError } from '@/api/errors';
 
 /**
  * Upload a file to POST /api/media with progress. openapi-fetch can't surface
  * upload progress, so we use XHR directly here (still same-origin, same auth).
+ *
+ * Going around `api` also means going around its auth middleware, so the
+ * refresh-and-retry dance is repeated here by hand — otherwise dropping an
+ * image into a tab that has been idle past the token's 15 minutes just fails.
  */
-export function uploadMedia(
+export async function uploadMedia(
   file: File,
+  onProgress?: (fraction: number) => void,
+): Promise<MediaItem> {
+  try {
+    return await send(file, await freshAccessToken(), onProgress);
+  } catch (e) {
+    if ((e as ApiError).status !== 401 || !(await renewSession())) throw e;
+    return send(file, await freshAccessToken(), onProgress);
+  }
+}
+
+function send(
+  file: File,
+  token: string | null,
   onProgress?: (fraction: number) => void,
 ): Promise<MediaItem> {
   return new Promise((resolve, reject) => {
@@ -17,7 +34,6 @@ export function uploadMedia(
     form.append('file', file);
 
     xhr.open('POST', `${apiBase}/api/media`);
-    const token = useAuthStore.getState().accessToken;
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
     xhr.upload.onprogress = (e) => {
