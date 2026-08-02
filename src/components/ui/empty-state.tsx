@@ -1,9 +1,9 @@
 import { motion } from 'motion/react';
-import type { Icon } from '@phosphor-icons/react';
 import { cn } from '@/lib/classnames';
+import type { UiIcon } from './icon';
 
 interface Props {
-  icon?: Icon;
+  icon?: UiIcon;
   title: string;
   hint?: string;
   action?: React.ReactNode;

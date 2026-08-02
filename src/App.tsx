@@ -4,6 +4,8 @@ import { adminBase } from '@/lib/base';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/layout/RequireAuth';
 import { RouteFallback } from '@/components/layout/RouteFallback';
+import { Placeholder } from '@/routes/placeholder';
+import { NAV } from '@/components/layout/nav';
 
 const Login = lazy(() => import('@/routes/login'));
 const Home = lazy(() => import('@/routes/home'));
@@ -20,6 +22,52 @@ const Settings = lazy(() => import('@/routes/settings'));
 const wrap = (el: React.ReactNode) => (
   <Suspense fallback={<RouteFallback />}>{el}</Suspense>
 );
+
+/**
+ * Sections that are in the nav but not built yet. Each gets a real route so
+ * the link works, deep-links resolve and the back button behaves — they just
+ * land on a page that says what will live there.
+ */
+const STUBS: Record<string, { description: string; hint: string }> = {
+  '/mcp': {
+    description: 'Let assistants read and write this site over the Model Context Protocol.',
+    hint: 'Connection details and per-client tokens will be managed here.',
+  },
+  '/api': {
+    description: 'Programmatic access to posts, media and everything else.',
+    hint: 'API keys and the endpoint reference will live here.',
+  },
+  '/domain': {
+    description: 'The address this site answers on.',
+    hint: 'Custom domains, DNS records and certificates will be set up here.',
+  },
+  '/analytics': {
+    description: 'How the site is doing.',
+    hint: 'Traffic, referrers and per-post performance will be reported here.',
+  },
+  '/data': {
+    description: 'Your content, in your hands.',
+    hint: 'Exports, imports and backups will be handled here.',
+  },
+  '/support': {
+    description: 'Help with plym.',
+    hint: 'Docs, diagnostics and a way to reach a human will be here.',
+  },
+};
+
+const stubRoutes = NAV.flatMap((g) => g.items)
+  .filter((item) => item.to in STUBS)
+  .map((item) => ({
+    path: item.to.slice(1),
+    element: (
+      <Placeholder
+        title={item.label}
+        icon={item.icon}
+        description={STUBS[item.to].description}
+        hint={STUBS[item.to].hint}
+      />
+    ),
+  }));
 
 const router = createBrowserRouter(
   [
@@ -43,6 +91,7 @@ const router = createBrowserRouter(
         { path: 'tags', element: wrap(<Tags />) },
         { path: 'categories', element: wrap(<Categories />) },
         { path: 'settings', element: wrap(<Settings />) },
+        ...stubRoutes,
       ],
     },
   ],

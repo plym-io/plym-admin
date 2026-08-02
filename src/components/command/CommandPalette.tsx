@@ -3,21 +3,13 @@ import { Command } from 'cmdk';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Article,
-  House,
-  Images,
-  Target,
-  Users as UsersIcon,
-  Question,
-  Tag,
-  FolderSimple,
-  GearSix,
   PlusCircle,
   UploadSimple,
   SignOut,
   MagnifyingGlass,
   ArrowUpRight,
 } from '@phosphor-icons/react';
+import { navSections } from '@/components/layout/nav';
 import { useUiStore } from '@/store/ui';
 import { usePostsStore } from '@/store/posts';
 import { useAuthStore } from '@/store/auth';
@@ -158,42 +150,24 @@ export function CommandPalette() {
                   </Command.Item>
                 </Command.Group>
 
-                <Command.Group heading="Pages">
-                  <Command.Item value="home" onSelect={() => go('/')}>
-                    <House size={16} /> Home
-                  </Command.Item>
-                  <Command.Item value="posts" onSelect={() => go('/posts')}>
-                    <Article size={16} /> Posts
-                  </Command.Item>
-                  <Command.Item value="media library" onSelect={() => go('/media')}>
-                    <Images size={16} /> Media
-                  </Command.Item>
-                  {role === 'administrator' && (
-                    <>
-                      <Command.Item value="leads submissions" onSelect={() => go('/leads')}>
-                        <Target size={16} /> Leads
-                      </Command.Item>
-                      <Command.Item value="users" onSelect={() => go('/users')}>
-                        <UsersIcon size={16} /> Users
-                      </Command.Item>
-                    </>
-                  )}
-                  <Command.Item value="faqs questions" onSelect={() => go('/faqs')}>
-                    <Question size={16} /> FAQs
-                  </Command.Item>
-                  <Command.Item
-                    value="categories"
-                    onSelect={() => go('/categories')}
-                  >
-                    <FolderSimple size={16} /> Categories
-                  </Command.Item>
-                  <Command.Item value="tags" onSelect={() => go('/tags')}>
-                    <Tag size={16} /> Tags
-                  </Command.Item>
-                  <Command.Item value="settings config" onSelect={() => go('/settings')}>
-                    <GearSix size={16} /> Settings
-                  </Command.Item>
-                </Command.Group>
+                {/* Driven off the sidebar's own definition — a page added to
+                    the nav is jumpable here without a second edit. */}
+                {navSections(role).map((group) => (
+                  <Command.Group key={group.label} heading={group.label}>
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <Command.Item
+                          key={item.to}
+                          value={`${item.label} ${item.keywords ?? ''}`}
+                          onSelect={() => go(item.to)}
+                        >
+                          <Icon size={16} /> {item.label}
+                        </Command.Item>
+                      );
+                    })}
+                  </Command.Group>
+                ))}
               </Command.List>
             </Command>
           </motion.div>
