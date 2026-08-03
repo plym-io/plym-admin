@@ -18,6 +18,7 @@ const DOC: OpenApiDocument = {
       get: {
         tags: ['Posts'],
         summary: 'List Posts',
+        security: [{ JWT: [] }],
         parameters: [
           { name: 'page', in: 'query', required: true, schema: { type: 'integer' } },
         ],
@@ -124,9 +125,25 @@ describe('listOperations', () => {
     expect(ops.find((o) => o.path === '/health')!.tag).toBe('General');
   });
 
-  it('reads an empty security array as public and a missing one as secured', () => {
-    expect(ops.find((o) => o.id === 'post:/api/posts')!.secured).toBe(false);
+  it('only marks an operation secured when something declares a requirement', () => {
+    // Declared on the operation.
     expect(ops.find((o) => o.id === 'get:/api/posts')!.secured).toBe(true);
+    // Explicitly opted out.
+    expect(ops.find((o) => o.id === 'post:/api/posts')!.secured).toBe(false);
+    // Nothing declared anywhere — plym's login and public reads look like this.
+    expect(ops.find((o) => o.id === 'get:/health')!.secured).toBe(false);
+  });
+
+  it('falls back to document-wide security for an operation that declares none', () => {
+    const guarded = listOperations({ ...DOC, security: [{ JWT: [] }] });
+    expect(guarded.find((o) => o.id === 'get:/health')!.secured).toBe(true);
+    // The operation's own empty list still wins over the document's.
+    expect(guarded.find((o) => o.id === 'post:/api/posts')!.secured).toBe(false);
+  });
+
+  it('reads an optional-auth requirement as public', () => {
+    const optional = listOperations({ ...DOC, security: [{}, { JWT: [] }] });
+    expect(optional.find((o) => o.id === 'get:/health')!.secured).toBe(false);
   });
 
   it('picks the JSON media type for bodies and responses', () => {

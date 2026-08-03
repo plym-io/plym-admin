@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/webp" href="/favicon.webp" />
+    <!-- The mark the panel already wears in the sidebar. SVG first so it stays
+         sharp at every tab size; the webp is the fallback for anything that
+         won't take one. Both are root-absolute on purpose — vite rewrites them
+         against the build's base, which the admin mount resolves. -->
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="alternate icon" type="image/webp" href="/favicon.webp" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />

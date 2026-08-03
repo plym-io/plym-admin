@@ -309,8 +309,10 @@ export default function ApiReference() {
             <span>
               Base URL <code className="font-mono text-fg">{baseUrl}</code>
             </span>
+            {/* A legend for the lock, not a blanket rule: the routes without
+                one — login, refresh, the public reads — take no token. */}
             <span className="flex items-center gap-1">
-              <LockSimple size={12} /> Bearer token
+              <LockSimple size={12} /> needs a bearer token
             </span>
           </div>
 

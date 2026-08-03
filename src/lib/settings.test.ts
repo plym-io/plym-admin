@@ -4,6 +4,7 @@ import {
   displayValue,
   flatten,
   groupSchema,
+  hasOwnScreen,
   sectionsFor,
   initialDraft,
   normalizePlan,
@@ -227,5 +228,24 @@ describe('sectionsFor', () => {
     expect(sections).toHaveLength(1);
     expect(keys(sections[0].fields)).toEqual(['experimental.thing', 'whats_this']);
     expect(sections[0].id).toBe('advanced');
+  });
+
+  it('leaves MCP to its own screen', () => {
+    const sections = sectionsFor([
+      { key: 'name' },
+      { key: 'mcp.enabled' },
+      { key: 'mcp' },
+    ]);
+    expect(sections.map((s) => s.id)).toEqual(['general']);
+    expect(keys(sections[0].fields)).toEqual(['name']);
+  });
+});
+
+describe('hasOwnScreen', () => {
+  it('claims the mcp keys and nothing that merely looks like them', () => {
+    expect(hasOwnScreen('mcp')).toBe(true);
+    expect(hasOwnScreen('mcp.enabled')).toBe(true);
+    expect(hasOwnScreen('mcp_endpoint')).toBe(false);
+    expect(hasOwnScreen('name')).toBe(false);
   });
 });

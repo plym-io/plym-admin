@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, Warning } from '@phosphor-icons/react';
+import { ArrowRight, ArrowSquareOut, Signpost, Warning } from '@phosphor-icons/react';
 import { applySettings, planSettings, type CloudError } from '@/api/cloud';
 import { isApiError } from '@/api/errors';
+import { adminUrlForPrefix } from '@/lib/base';
 import { displayValue, isHeavy } from '@/lib/settings';
 import type { Plan } from '@/types/cloud';
 import { Modal } from '@/components/ui/modal';
@@ -10,6 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ImpactBadge, IMPACT_META } from './ImpactBadge';
 import { OpProgress } from './OpProgress';
+
+/** The setting that moves the blog — and this panel with it. */
+const PREFIX_KEY = 'blog_prefix';
+
+/** How long the "we're moving you" panel is readable before it moves you. */
+const MOVE_DELAY_MS = 4000;
 
 interface Props {
   open: boolean;
@@ -32,6 +39,7 @@ export function DeployModal({ open, patch, onClose, onApplied }: Props) {
   const [opId, setOpId] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [moved, setMoved] = useState(false);
 
   // Dry-run on open. Nothing is written, so it is safe to redo every time.
   useEffect(() => {
@@ -41,6 +49,7 @@ export function DeployModal({ open, patch, onClose, onApplied }: Props) {
     setPlanError(null);
     setOpId(null);
     setFinished(false);
+    setMoved(false);
     planSettings(patch)
       .then((p) => !cancelled && setPlan(p))
       .catch((e) => !cancelled && setPlanError(isApiError(e) ? (e as CloudError) : null));
@@ -50,6 +59,18 @@ export function DeployModal({ open, patch, onClose, onApplied }: Props) {
     // `patch` is memoized by the caller, so this re-plans when the draft
     // changes and not on every render of the screen behind the dialog.
   }, [open, patch]);
+
+  /**
+   * The address this panel will have afterwards, when the batch moves the blog.
+   * The gateway's own resolved value wins over the draft — it is the one that
+   * has been through whatever normalising the plan does to a path.
+   */
+  const newAdminUrl = useMemo(() => {
+    if (!(PREFIX_KEY in patch)) return null;
+    const next =
+      plan?.changes.find((c) => c.key === PREFIX_KEY)?.to ?? patch[PREFIX_KEY];
+    return typeof next === 'string' ? adminUrlForPrefix(next) : null;
+  }, [plan, patch]);
 
   const deploy = async () => {
     setApplying(true);
@@ -64,11 +85,31 @@ export function DeployModal({ open, patch, onClose, onApplied }: Props) {
 
   const settle = (state: 'succeeded' | 'failed') => {
     setFinished(true);
-    if (state === 'succeeded') toast.success('Changes are live.');
-    else toast.error('The deploy failed. The log has the details.');
+    if (state === 'failed') {
+      toast.error('The deploy failed. The log has the details.');
+      return;
+    }
+    // A prefix change takes the panel's own address with it, so there is no
+    // "back to the screen behind this dialog" — that URL is gone, and so is
+    // the API it was calling. Say so, then go.
+    if (newAdminUrl) setMoved(true);
+    else toast.success('Changes are live.');
   };
 
+  // Nothing here is worth losing the new address over: if the timer is what
+  // moves you, it is also what the button below does, immediately.
+  useEffect(() => {
+    if (!moved || !newAdminUrl) return;
+    const timer = setTimeout(() => window.location.replace(newAdminUrl), MOVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [moved, newAdminUrl]);
+
   const close = () => {
+    // Reloading the screen behind the dialog would only reach the old prefix.
+    if (moved && newAdminUrl) {
+      window.location.replace(newAdminUrl);
+      return;
+    }
     if (opId && !finished) toast('Deploy is still running — it will finish on its own.');
     onClose();
     if (opId) onApplied();
@@ -87,7 +128,7 @@ export function DeployModal({ open, patch, onClose, onApplied }: Props) {
     <Modal open={open} onClose={close} label="Deploy changes" className="max-w-lg">
       <div className="p-5">
         <h2 className="text-[17px] font-semibold tracking-tight text-fg">
-          {opId ? 'Deploying' : 'Deploy these changes?'}
+          {moved ? 'Deployed' : opId ? 'Deploying' : 'Deploy these changes?'}
         </h2>
 
         {!opId && (
@@ -160,10 +201,43 @@ export function DeployModal({ open, patch, onClose, onApplied }: Props) {
                 )}
               </div>
             </div>
+
+            {/* The one consequence that isn't about the blog: this panel is
+                served from under the blog's prefix, so moving the blog moves
+                the admin. Said before the click, not discovered after it. */}
+            {newAdminUrl && (
+              <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-border bg-bg-subtle p-3">
+                <Signpost size={16} className="mt-px shrink-0 text-fg-subtle" />
+                <div className="min-w-0">
+                  <p className="text-[13px] text-fg">This admin panel moves too.</p>
+                  <p className="mt-0.5 break-all font-mono text-[12.5px] text-fg-muted">
+                    {newAdminUrl}
+                  </p>
+                  <p className="mt-1 text-[12.5px] text-fg-subtle">
+                    You'll be taken there when the deploy finishes. Update any bookmark
+                    you have to this page.
+                  </p>
+                </div>
+              </div>
+            )}
           </>
         )}
 
         {opId && <OpProgress opId={opId} onSettled={settle} className="mt-4" />}
+
+        {moved && newAdminUrl && (
+          <div className="mt-4 rounded-lg border border-success/40 bg-success/5 p-3">
+            <p className="text-[13.5px] font-medium text-fg">
+              Your blog has moved — and this panel with it.
+            </p>
+            <p className="mt-0.5 break-all font-mono text-[12.5px] text-fg-muted">
+              {newAdminUrl}
+            </p>
+            <p className="mt-1.5 text-[12.5px] text-fg-subtle">
+              Taking you there now. The old address no longer answers.
+            </p>
+          </div>
+        )}
 
         <div className="mt-5 flex items-center justify-end gap-2">
           {!opId ? (
@@ -181,7 +255,15 @@ export function DeployModal({ open, patch, onClose, onApplied }: Props) {
             </>
           ) : (
             <Button variant={finished ? 'primary' : 'ghost'} onClick={close}>
-              {finished ? 'Done' : 'Leave it running'}
+              {moved ? (
+                <>
+                  Go to the new address <ArrowSquareOut size={14} />
+                </>
+              ) : finished ? (
+                'Done'
+              ) : (
+                'Leave it running'
+              )}
             </Button>
           )}
         </div>

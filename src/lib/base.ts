@@ -7,6 +7,25 @@ export const adminBase = match ? match[1] : '/admin';
 export const apiBase = match ? match[1].slice(0, -'/plym-admin'.length) : '';
 
 /**
+ * Where this panel answers once the blog is mounted at `prefix` instead.
+ *
+ * The admin is served from under the blog's own mount, so changing the blog
+ * prefix moves the panel with it — the page you are looking at stops existing
+ * the moment the deploy lands, and so does the API it has been talking to. The
+ * route inside the SPA survives the move, so it is carried across: someone who
+ * was on Settings arrives on Settings.
+ *
+ * A blog mounted at the domain root ('' or '/') puts the panel at
+ * '/plym-admin/'.
+ */
+export const adminUrlForPrefix = (prefix: string) => {
+  const mount = prefix.trim().replace(/^\/+|\/+$/g, '');
+  const { origin, pathname, search, hash } = window.location;
+  const route = pathname.startsWith(adminBase) ? pathname.slice(adminBase.length) : '';
+  return `${origin}${mount ? `/${mount}` : ''}/plym-admin${route || '/'}${search}${hash}`;
+};
+
+/**
  * Public URL of a rendered post. Always build these from the server's `path`,
  * never from `slug` — a categorised post lives at "<category>/<slug>", so a
  * slug-only URL 404s for every post that has a category.
