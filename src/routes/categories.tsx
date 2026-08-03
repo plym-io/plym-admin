@@ -65,7 +65,7 @@ export default function Categories() {
     <Page width="text">
       <PageHeader
         title="Categories"
-        description="Group posts under a single category. Weight controls display order — lower comes first."
+        description="One category per post. Lower weight comes first."
         actions={
           <Button variant="accent" onClick={() => setEditing('new')}>
             <Plus size={16} weight="bold" /> New category
@@ -92,7 +92,7 @@ export default function Categories() {
           }
         />
       ) : (
-        <div className="mt-6 divide-y divide-border rounded-lg border border-border">
+        <div className="mt-6 divide-y divide-border overflow-hidden rounded-xl border border-border bg-bg shadow-xs">
           {list.map((c) => (
             <div key={c.id} className="group flex items-center gap-3 px-4 py-2.5">
               <span className="shrink-0 text-sm font-medium text-fg">{c.name}</span>

@@ -254,8 +254,11 @@ export function initialDraft(
 
 /**
  * Fields grouped by their dotted prefix, in the order the schema lists them.
- * Top-level keys (`name`, `template`, …) collect under "Site", the way the
- * read-only OSS settings screen shows them.
+ * Top-level keys (`name`, `template`, …) collect under "Site".
+ *
+ * This is the raw shape of the document. What the screen shows is
+ * `sectionsFor` below, which files those prefixes under names a reader
+ * recognises rather than the config's own key layout.
  */
 export function groupSchema(
   schema: SettingSchema[],
@@ -272,6 +275,96 @@ export function groupSchema(
   return [...groups.entries()]
     .sort((a, b) => Number(b[0] === 'Site') - Number(a[0] === 'Site'))
     .map(([title, fields]) => ({ title, fields }));
+}
+
+/* ── the settings screen's own layout ─────────────────────────────────── */
+
+export interface SectionSpec {
+  id: string;
+  title: string;
+  description?: string;
+  /** Exact top-level keys, and dotted prefixes, that belong here. */
+  keys?: string[];
+  prefixes?: string[];
+}
+
+/**
+ * How the settings screen is organised, which is deliberately not how the
+ * config file is. `reading` and `inject` sit under Advanced with the rest of
+ * the machinery; the things an owner changes weekly sit at the top.
+ *
+ * The last section has no matchers and is the catch-all: a key this list has
+ * never heard of still gets rendered, under Advanced, rather than being
+ * silently dropped from the form.
+ */
+export const SECTIONS: SectionSpec[] = [
+  {
+    id: 'general',
+    title: 'General',
+    description: 'How the blog introduces itself.',
+    keys: ['name', 'description', 'language', 'website', 'blog_home', 'blog_prefix'],
+  },
+  {
+    id: 'branding',
+    title: 'Branding',
+    description: 'Marks, colours and type.',
+    keys: ['logo', 'favicon'],
+    prefixes: ['colors', 'fonts'],
+  },
+  {
+    id: 'template',
+    title: 'Template',
+    description: 'Which theme renders the blog.',
+    keys: ['template'],
+  },
+  {
+    id: 'content',
+    title: 'Content',
+    description: 'How posts and listings are presented.',
+    prefixes: ['pagination', 'prism'],
+  },
+  {
+    id: 'advanced',
+    title: 'Advanced',
+    description: 'Injected markup, caching, crawlers and everything else.',
+  },
+];
+
+function sectionFor(key: string): SectionSpec {
+  const prefix = key.includes('.') ? key.slice(0, key.indexOf('.')) : null;
+  for (const section of SECTIONS) {
+    if (!prefix && section.keys?.includes(key)) return section;
+    if (prefix && section.prefixes?.includes(prefix)) return section;
+  }
+  return SECTIONS[SECTIONS.length - 1];
+}
+
+export interface Section<T> {
+  id: string;
+  title: string;
+  description?: string;
+  fields: T[];
+}
+
+/**
+ * Group anything key-shaped into the screen's sections, in `SECTIONS` order.
+ * Empty sections are dropped — a deployment that publishes no branding keys
+ * shouldn't show a Branding tab with nothing under it.
+ */
+export function sectionsFor<T extends { key: string }>(fields: T[]): Section<T>[] {
+  const buckets = new Map<string, T[]>();
+  for (const field of fields) {
+    const section = sectionFor(field.key);
+    const bucket = buckets.get(section.id);
+    if (bucket) bucket.push(field);
+    else buckets.set(section.id, [field]);
+  }
+  return SECTIONS.filter((s) => buckets.get(s.id)?.length).map((s) => ({
+    id: s.id,
+    title: s.title,
+    description: s.description,
+    fields: buckets.get(s.id)!,
+  }));
 }
 
 /** `http_cache.index_max_age` → "Index max age". */

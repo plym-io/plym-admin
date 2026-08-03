@@ -10,7 +10,6 @@ import {
   GearSix,
   Globe,
   Code,
-  Database,
   Lifebuoy,
   ChartLine,
 } from '@phosphor-icons/react';
@@ -51,13 +50,14 @@ export interface NavGroup {
  * The one description of the admin's navigation — rendered by the sidebar and
  * replayed as the command palette's "Pages" list, so the two can't drift.
  *
- * Groups appear in this order. Home sits above them all, and the sections that
- * answer "something is wrong" or "give me everything" sit below, unlabelled,
- * because neither belongs under a single heading.
+ * Groups appear in this order. Home sits above them all, and Support sits
+ * below, unlabelled, because it doesn't belong under a section heading.
  *
- * The four `cloudOnly` destinations are the ones with nothing behind them on an
- * OSS blog — no gateway to ask for domains, no platform to switch MCP on. They
- * are hidden rather than stubbed, so the OSS panel is only what it can do.
+ * The `cloudOnly` destinations are the ones with nothing behind them on an OSS
+ * blog — no gateway to ask for domains, no edge collecting traffic. They are
+ * hidden rather than stubbed, so the OSS panel is only what it can do. MCP and
+ * the API reference are *not* among them: both editions have both, they are
+ * just reached differently, and each page says which way round it is.
  */
 export const NAV: NavGroup[] = [
   {
@@ -97,15 +97,13 @@ export const NAV: NavGroup[] = [
         label: 'MCP',
         icon: McpIcon,
         keywords: 'model context protocol',
-        cloudOnly: true,
         capability: 'mcp',
       },
       {
         to: '/api',
         label: 'API',
         icon: Code,
-        keywords: 'rest openapi tokens',
-        cloudOnly: true,
+        keywords: 'rest openapi reference swagger',
       },
     ],
   },
@@ -126,7 +124,6 @@ export const NAV: NavGroup[] = [
   },
   {
     items: [
-      { to: '/data', label: 'Data', icon: Database, keywords: 'export import backup' },
       { to: '/support', label: 'Support', icon: Lifebuoy, keywords: 'help contact' },
     ],
   },
@@ -151,6 +148,31 @@ export function visibleNav({ role, cloud, capabilities }: NavContext): NavGroup[
         (!i.capability || !cloud || capabilityOn(capabilities ?? null, i.capability)),
     ),
   })).filter((g) => g.items.length > 0);
+}
+
+/**
+ * Where a path sits in the nav: its section, and the item it belongs to.
+ * Matched on the longest `to` that prefixes the path, so `/posts/42` resolves
+ * to Posts rather than falling through to Home.
+ */
+export function locateNav(
+  pathname: string,
+): { group?: string; item: NavItem } | null {
+  let best: { group?: string; item: NavItem } | null = null;
+  for (const group of NAV) {
+    for (const item of group.items) {
+      if (item.to === '/') {
+        if (pathname === '/') best = { group: group.label, item };
+        continue;
+      }
+      if (pathname === item.to || pathname.startsWith(`${item.to}/`)) {
+        if (!best || item.to.length > best.item.to.length) {
+          best = { group: group.label, item };
+        }
+      }
+    }
+  }
+  return best;
 }
 
 /**

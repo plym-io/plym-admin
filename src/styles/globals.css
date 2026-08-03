@@ -1,23 +1,89 @@
 @import 'tailwindcss';
 
 /* ------------------------------------------------------------------ *
- * plym design tokens — mirrors the rendered blog's theme.
+ * plym design tokens.
+ *
+ * Two layers on purpose. The palette below (`--p-*`) is the only place a
+ * literal colour is written, and it is swapped wholesale by the theme; the
+ * `@theme` block underneath names those swatches semantically and is what
+ * every utility class resolves against. So `bg-bg` is "the surface colour",
+ * not "white", and dark mode is a palette swap rather than a second set of
+ * classes on every element.
  * ------------------------------------------------------------------ */
-@theme {
-  --color-bg: #ffffff;
-  --color-bg-subtle: #fafaf7;
-  --color-bg-muted: #f4f4f1;
-  --color-border: #ececec;
-  --color-border-strong: #d9d9d9;
-  --color-fg: #1a1a1a;
-  --color-fg-muted: #6b6b6b;
-  --color-fg-subtle: #9a9a9a;
-  --color-accent: #f43d02;
-  --color-accent-soft: rgba(244, 61, 2, 0.12);
+:root,
+[data-theme='light'] {
+  color-scheme: light;
 
-  --color-success: #2f7a3e;
-  --color-warning: #c97a16;
-  --color-danger: #c4321a;
+  /* Chrome and content sit on different planes: canvas is the recessed
+     field behind the work, surface is the panel the work is drawn on. */
+  --p-canvas: #f4f6f8;
+  --p-surface: #ffffff;
+  --p-subtle: #f7f8fa;
+  --p-muted: #eceef2;
+  --p-border: #e2e5ea;
+  --p-border-strong: #c7ccd4;
+  --p-fg: #12161c;
+  --p-fg-muted: #59626e;
+  --p-fg-subtle: #8a929d;
+  --p-accent: #f43d02;
+  --p-accent-fg: #ffffff;
+  --p-accent-soft: rgba(244, 61, 2, 0.1);
+  --p-accent-ring: rgba(244, 61, 2, 0.28);
+  --p-success: #1f7a41;
+  --p-warning: #b3720d;
+  --p-danger: #c4321a;
+
+  --p-shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --p-shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.07), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --p-shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 2px 4px rgba(16, 24, 40, 0.04);
+  --p-shadow-lg: 0 16px 40px rgba(16, 24, 40, 0.12), 0 4px 8px rgba(16, 24, 40, 0.06);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --p-canvas: #0c1016;
+  --p-surface: #14191f;
+  --p-subtle: #1a2028;
+  --p-muted: #222933;
+  --p-border: #262e39;
+  --p-border-strong: #3b4551;
+  --p-fg: #e7eaee;
+  --p-fg-muted: #9aa4b1;
+  --p-fg-subtle: #6d7783;
+  /* Nudged up in lightness: the print orange is legible on white but sits
+     too close to the background once the background is nearly black. */
+  --p-accent: #ff5c26;
+  --p-accent-fg: #1a0a03;
+  --p-accent-soft: rgba(255, 92, 38, 0.16);
+  --p-accent-ring: rgba(255, 92, 38, 0.36);
+  --p-success: #3fb96b;
+  --p-warning: #e0a33a;
+  --p-danger: #f2694f;
+
+  --p-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --p-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --p-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.55), 0 2px 4px rgba(0, 0, 0, 0.4);
+  --p-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.65), 0 4px 8px rgba(0, 0, 0, 0.45);
+}
+
+@theme {
+  --color-canvas: var(--p-canvas);
+  --color-bg: var(--p-surface);
+  --color-bg-subtle: var(--p-subtle);
+  --color-bg-muted: var(--p-muted);
+  --color-border: var(--p-border);
+  --color-border-strong: var(--p-border-strong);
+  --color-fg: var(--p-fg);
+  --color-fg-muted: var(--p-fg-muted);
+  --color-fg-subtle: var(--p-fg-subtle);
+  --color-accent: var(--p-accent);
+  --color-accent-fg: var(--p-accent-fg);
+  --color-accent-soft: var(--p-accent-soft);
+
+  --color-success: var(--p-success);
+  --color-warning: var(--p-warning);
+  --color-danger: var(--p-danger);
 
   --font-sans: 'Archivo', system-ui, -apple-system, sans-serif;
   --font-display: 'Space Grotesk', 'Archivo', sans-serif;
@@ -30,12 +96,13 @@
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-pill: 999px;
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --shadow-xs: var(--p-shadow-xs);
+  --shadow-sm: var(--p-shadow-sm);
+  --shadow-md: var(--p-shadow-md);
+  --shadow-lg: var(--p-shadow-lg);
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -52,11 +119,12 @@
   html {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    background: var(--color-canvas);
   }
 
   body {
     margin: 0;
-    background: var(--color-bg);
+    background: var(--color-canvas);
     color: var(--color-fg);
     font-family: var(--font-sans);
   }
@@ -66,9 +134,9 @@
     color: var(--color-fg);
   }
 
-  /* Custom focus ring — accent at 30% opacity, never the UA default. */
+  /* Custom focus ring — accent, never the UA default. */
   :focus-visible {
-    outline: 2px solid rgba(244, 61, 2, 0.3);
+    outline: 2px solid var(--p-accent-ring);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }

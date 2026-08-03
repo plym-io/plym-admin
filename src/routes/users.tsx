@@ -6,18 +6,19 @@ import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import { useAuthStore } from '@/store/auth';
 import type { Role, User } from '@/types';
-import { Page, PageHeader } from '@/components/ui/page';
+import { Page, PageHeader, Panel } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
 import { Sheet } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
+import { Avatar } from '@/components/ui/avatar';
 import { ConfirmButton } from '@/components/ui/confirm';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/classnames';
 
 const ROLE_STYLE: Record<Role, string> = {
-  administrator: 'bg-accent-soft text-accent',
-  editor: 'bg-bg-muted text-fg-muted',
-  reader: 'bg-bg-muted text-fg-subtle',
+  administrator: 'border-accent/30 bg-accent-soft text-accent',
+  editor: 'border-border bg-bg-subtle text-fg-muted',
+  reader: 'border-border bg-bg-subtle text-fg-subtle',
 };
 
 type Tab = 'active' | 'deactivated';
@@ -31,15 +32,6 @@ interface NewUser {
   display_name: string;
   password: string;
   role: Role;
-}
-
-function initials(name: string) {
-  return name
-    .split(' ')
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
 }
 
 export default function Users() {
@@ -119,7 +111,7 @@ export default function Users() {
     <Page width="text">
       <PageHeader
         title="Users"
-        description="People with access to this plym instance."
+        description="People with access to this blog."
         actions={
           isAdmin ? (
             <Button variant="accent" onClick={() => setCreating(true)}>
@@ -129,13 +121,13 @@ export default function Users() {
         }
       />
 
-      <div className="mt-6 flex items-center gap-1 rounded-md bg-bg-muted p-0.5">
+      <div className="mt-6 inline-flex items-center gap-1 rounded-md border border-border bg-bg-subtle p-0.5">
         {TABS.map((t) => (
           <button
             key={t.value}
             onClick={() => setTab(t.value)}
             className={cn(
-              'rounded px-3 py-1 text-sm transition-colors',
+              'rounded px-3 py-1 text-[13px] font-medium transition-colors',
               tab === t.value
                 ? 'bg-bg text-fg shadow-xs'
                 : 'text-fg-muted hover:text-fg',
@@ -143,7 +135,7 @@ export default function Users() {
           >
             {t.label}
             {t.value === 'deactivated' && deactivatedCount > 0 && (
-              <span className="ml-1.5 text-fg-subtle">{deactivatedCount}</span>
+              <span className="ml-1.5 text-fg-subtle tnum">{deactivatedCount}</span>
             )}
           </button>
         ))}
@@ -162,20 +154,23 @@ export default function Users() {
             : 'No active users.'}
         </p>
       ) : (
-        <div className="mt-4 divide-y divide-border rounded-lg border border-border">
+        <Panel flush className="mt-4 divide-y divide-border overflow-hidden">
           {visible.map((u) => (
             <div
               key={u.id}
               className={cn(
-                'group flex items-center gap-3 px-4 py-3',
+                'group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-subtle',
                 !u.is_active && 'opacity-60',
               )}
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-bg-muted text-xs font-semibold text-fg-muted">
-                {initials(u.display_name)}
-              </span>
+              <Avatar
+                src={u.avatar_url}
+                name={u.display_name}
+                size={36}
+                tone={u.id === me?.id ? 'accent' : 'neutral'}
+              />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-fg">
+                <p className="truncate text-[13.5px] font-medium text-fg">
                   {u.display_name}
                   {u.id === me?.id && (
                     <span className="ml-2 text-xs font-normal text-fg-subtle">
@@ -183,11 +178,11 @@ export default function Users() {
                     </span>
                   )}
                 </p>
-                <p className="truncate text-xs text-fg-muted">{u.email}</p>
+                <p className="truncate text-[12.5px] text-fg-muted">{u.email}</p>
               </div>
               <span
                 className={cn(
-                  'shrink-0 rounded-pill px-2 py-0.5 text-xs font-medium capitalize',
+                  'shrink-0 rounded-pill border px-2 py-0.5 text-[11px] font-medium capitalize',
                   ROLE_STYLE[u.role],
                 )}
               >
@@ -233,7 +228,7 @@ export default function Users() {
               )}
             </div>
           ))}
-        </div>
+        </Panel>
       )}
 
       {isAdmin && (
@@ -264,9 +259,7 @@ function NewUserSheet({
     try {
       const created = await call(api.POST('/api/users', { body: values }));
       onCreated(created);
-      toast.success('Welcome to the team.', {
-        description: `${created.display_name} can sign in now.`,
-      });
+      toast.success(`${created.display_name} can sign in now.`);
       reset({ role: 'editor' });
       onClose();
     } catch (e) {
@@ -281,7 +274,7 @@ function NewUserSheet({
           <div>
             <h2 className="text-lg font-semibold tracking-tight">New user</h2>
             <p className="mt-1 text-sm text-fg-muted">
-              They'll sign in with this email and password.
+              They sign in with this email and password.
             </p>
           </div>
           <Field label="Display name">
@@ -318,7 +311,7 @@ function NewUserSheet({
         </div>
         <div className="flex gap-2 border-t border-border p-4">
           <Button type="button" variant="ghost" onClick={onClose} className="flex-1">
-            Keep editing
+            Cancel
           </Button>
           <Button
             type="submit"

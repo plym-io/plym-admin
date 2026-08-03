@@ -11,14 +11,14 @@ const button = cva(
         primary:
           'bg-fg text-bg hover:bg-fg/90 shadow-xs',
         accent:
-          'bg-accent text-white hover:brightness-105 shadow-xs',
+          'bg-accent text-accent-fg hover:brightness-105 shadow-xs',
         secondary:
           'bg-bg-subtle text-fg border border-border hover:bg-bg-muted',
         ghost: 'text-fg-muted hover:text-fg hover:bg-bg-muted',
         danger:
           'text-danger hover:bg-danger/10',
         dangerSolid:
-          'bg-danger text-white hover:brightness-110 shadow-xs',
+          'bg-danger text-bg hover:brightness-110 shadow-xs',
         link: 'text-accent hover:underline underline-offset-2 px-0',
       },
       size: {

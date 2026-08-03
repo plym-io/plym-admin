@@ -84,10 +84,9 @@ export default function Login() {
           />
         </div>
         <div className="absolute bottom-10 left-8 max-w-sm">
-          <p className="font-display text-2xl leading-snug text-fg">
-            plym helps you get your story the reach it deserves.
-          </p>
-          <p className="mt-2 text-sm text-fg-muted">
+          {/* The product's own positioning line, and nothing else — a sign-in
+              screen is not the place for a pitch. */}
+          <p className="font-display text-xl leading-snug text-fg">
             Modern CMS for the AI-native web.
           </p>
         </div>
@@ -100,9 +99,6 @@ export default function Login() {
           className={cn('w-full max-w-sm', shake > 0 && 'animate-shake')}
         >
           <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            Welcome back.
-          </p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-4">
             <div className="space-y-1.5">

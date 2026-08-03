@@ -458,7 +458,7 @@ export default function Leads() {
         />
       ) : (
         <>
-          <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-bg shadow-xs">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="bg-bg-subtle">
@@ -683,7 +683,7 @@ function ToolButton({
       <Icon size={15} weight="bold" />
       {label}
       {count != null && count > 0 && (
-        <span className="ml-0.5 rounded-pill bg-accent px-1.5 text-[11px] font-semibold text-white tnum">
+        <span className="ml-0.5 rounded-pill bg-accent px-1.5 text-[11px] font-semibold text-accent-fg tnum">
           {count}
         </span>
       )}

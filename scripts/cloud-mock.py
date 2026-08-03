@@ -16,6 +16,7 @@ a few seconds, so the deploy flow and its live log behave as they will in
 production. Restart the script to reset.
 """
 import json
+import pathlib
 import re
 import sys
 import threading
@@ -80,7 +81,16 @@ SCHEMA = [
     {"key": "inject.body", "kind": "html", "impact": "rebuild", "effects": []},
 ]
 
-TEMPLATES = {"installed": ["atlas", "navera"], "available": ["atlas", "navera", "quill"]}
+# The v2 /templates contract: what is installed now, and what could be fetched
+# from the shared repo or the tenant's own registry folder.
+TEMPLATES = {
+    "slug": "acme",
+    "available": ["atlas", "navera"],
+    "source": "overlay",
+    "active": "atlas",
+    "public": ["atlas", "navera", "quill", "magazine", "minimal"],
+    "private": ["acme-blog-v1"],
+}
 
 CHANGES = [
     {"key": "colors.primary", "from": "#111111", "to": "#2f6fed", "at": "2026-08-01T09:14:00Z", "actor": "root@plym.local"},
@@ -408,6 +418,14 @@ EVENT_SCRIPT = {
         (3.6, "info", "Purging the CDN"),
         (4.4, "done", "Your blog now answers on its new address."),
     ],
+    "template": [
+        (0.0, "info", "Resolving the template from the registry"),
+        (0.9, "info", "Fetching templates/ at ref main"),
+        (2.0, "info", "Writing the overlay"),
+        (3.0, "info", "Recreating the blog container"),
+        (4.0, "info", "Re-rendering 12 published posts"),
+        (4.8, "done", "Template installed. Select it to make it live."),
+    ],
     "reload": [
         (0.0, "info", "Validating the settings document"),
         (0.6, "info", "Re-applying config.yaml"),
@@ -511,8 +529,32 @@ class Handler(BaseHTTPRequestHandler):
             here = placement()
             return 200, {"url": here["public_url"], "prefix": here["prefix"], "running": True,
                          "state": "healthy", "image": "plymio/plym:1.2.0", "admin_version": "1.1.0"}
-        if path == "/templates":
-            return 200, TEMPLATES
+        if path == "/templates" and method == "GET":
+            return 200, dict(TEMPLATES, active=flat(VALUES).get("template"))
+        if path == "/templates" and method == "POST":
+            name = body.get("name")
+            source = body.get("source", "public")
+            if source not in ("public", "private"):
+                return 422, {"kind": "invalid", "error": "invalid",
+                             "message": f"Unknown source {source!r}.",
+                             "remedy": "Use \"public\" or \"private\"."}
+            offered = TEMPLATES[source]
+            if name not in offered:
+                return 404, {"kind": "not_found", "error": "not_found",
+                             "message": f"No template named {name!r} in the {source} registry.",
+                             "remedy": "Pick a name from the list."}
+            if name in TEMPLATES["available"] and not body.get("update"):
+                return 409, {"kind": "conflict", "error": "conflict",
+                             "message": f"{name} is already installed.",
+                             "remedy": "Pass update: true to refetch it."}
+            op = start_op("template", "template")
+            # Installing restarts the blog, so it lands only when the op does.
+            threading.Timer(
+                5.0,
+                lambda: TEMPLATES["available"].append(name)
+                if name not in TEMPLATES["available"] else None,
+            ).start()
+            return 202, {"op_id": op["op_id"], "verb": "template", "target": name, "state": "queued"}
         if path == "/gateways":
             return 200, {"gateways": routing_options(placement())["gateways"], "kinds": KINDS,
                          "example": placement(parse_home("https://www.example.com/blog")),
@@ -591,6 +633,20 @@ class Handler(BaseHTTPRequestHandler):
     def _handle(self):
         from urllib.parse import urlparse, parse_qs
         parsed = urlparse(self.path)
+        # plym only publishes its OpenAPI document in debug mode, so a stock
+        # sandbox 404s it and the panel's API screen has nothing to render.
+        # Serve the repo's checked-in snapshot here so that screen is drivable
+        # locally without putting the shared sandbox into debug.
+        if parsed.path in ("/api/openapi.json", "/openapi.json"):
+            spec = pathlib.Path(__file__).resolve().parent.parent / "openapi.json"
+            if spec.exists():
+                body = spec.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
         if parsed.path.startswith("/cloud"):
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length) if length else b""

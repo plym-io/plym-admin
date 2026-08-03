@@ -49,7 +49,7 @@ export function Step({
         className={cn(
           'absolute left-0 top-0.5 flex h-[27px] w-[27px] items-center justify-center rounded-full border text-[12px] font-medium tnum transition-colors',
           done && 'border-success/40 bg-success/10 text-success',
-          active && 'border-accent bg-accent text-white',
+          active && 'border-accent bg-accent text-accent-fg',
           state === 'upcoming' && 'border-border text-fg-subtle',
         )}
       >

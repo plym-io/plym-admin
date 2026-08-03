@@ -219,6 +219,26 @@ export interface SettingsChange {
   op_id?: string;
 }
 
+/** Where a template can be installed from. */
+export type TemplateSource = 'public' | 'private';
+
+/**
+ * `GET /templates` — what this blog has, and what it could have.
+ *
+ * `available` is the set of valid values for the `template` setting;
+ * `public`/`private` are what can still be fetched, from the shared repo and
+ * from the tenant's own registry folder. A name in a source list but not in
+ * `available` is an install; a name in `available` is a select.
+ */
+export interface TemplateCatalog {
+  slug?: string;
+  available: string[];
+  active?: string | null;
+  public: string[];
+  private: string[];
+  source?: string;
+}
+
 /** `GET /status` — where the blog is served and whether it is healthy. */
 export interface TenantStatus {
   url?: string;

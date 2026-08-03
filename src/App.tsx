@@ -4,8 +4,6 @@ import { adminBase } from '@/lib/base';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/layout/RequireAuth';
 import { RouteFallback } from '@/components/layout/RouteFallback';
-import { Placeholder } from '@/routes/placeholder';
-import { NAV } from '@/components/layout/nav';
 import { useIsCloud } from '@/store/cloud';
 
 const Login = lazy(() => import('@/routes/login'));
@@ -19,27 +17,15 @@ const Faqs = lazy(() => import('@/routes/faqs'));
 const Tags = lazy(() => import('@/routes/tags'));
 const Categories = lazy(() => import('@/routes/categories'));
 const Settings = lazy(() => import('@/routes/settings'));
-const Data = lazy(() => import('@/routes/data'));
 const Support = lazy(() => import('@/routes/support'));
 const Domain = lazy(() => import('@/routes/domain'));
 const Mcp = lazy(() => import('@/routes/mcp'));
 const Analytics = lazy(() => import('@/routes/analytics'));
+const ApiReference = lazy(() => import('@/routes/api'));
 
 const wrap = (el: React.ReactNode) => (
   <Suspense fallback={<RouteFallback />}>{el}</Suspense>
 );
-
-/**
- * Sections that are in the nav but not built yet. Each gets a real route so
- * the link works, deep-links resolve and the back button behaves — they just
- * land on a page that says what will live there.
- */
-const STUBS: Record<string, { description: string; hint: string }> = {
-  '/api': {
-    description: 'Programmatic access to posts, media and everything else.',
-    hint: 'API keys and the endpoint reference will live here.',
-  },
-};
 
 /**
  * A section that only exists on plym cloud. Self-hosted blogs have no gateway
@@ -49,23 +35,6 @@ const STUBS: Record<string, { description: string; hint: string }> = {
 function CloudOnly({ children }: { children: React.ReactNode }) {
   return useIsCloud() ? <>{children}</> : <Navigate to="/" replace />;
 }
-
-const stubRoutes = NAV.flatMap((g) => g.items)
-  .filter((item) => item.to in STUBS)
-  .map((item) => {
-    const page = (
-      <Placeholder
-        title={item.label}
-        icon={item.icon}
-        description={STUBS[item.to].description}
-        hint={STUBS[item.to].hint}
-      />
-    );
-    return {
-      path: item.to.slice(1),
-      element: item.cloudOnly ? <CloudOnly>{page}</CloudOnly> : page,
-    };
-  });
 
 const router = createBrowserRouter(
   [
@@ -89,21 +58,16 @@ const router = createBrowserRouter(
         { path: 'tags', element: wrap(<Tags />) },
         { path: 'categories', element: wrap(<Categories />) },
         { path: 'settings', element: wrap(<Settings />) },
-        { path: 'data', element: wrap(<Data />) },
         { path: 'support', element: wrap(<Support />) },
+        { path: 'api', element: wrap(<ApiReference />) },
+        // Both editions run an MCP server; only the way you switch it on
+        // differs, so the page is reachable either way.
+        { path: 'mcp', element: wrap(<Mcp />) },
         {
           path: 'domain',
           element: wrap(
             <CloudOnly>
               <Domain />
-            </CloudOnly>,
-          ),
-        },
-        {
-          path: 'mcp',
-          element: wrap(
-            <CloudOnly>
-              <Mcp />
             </CloudOnly>,
           ),
         },
@@ -115,7 +79,6 @@ const router = createBrowserRouter(
             </CloudOnly>,
           ),
         },
-        ...stubRoutes,
       ],
     },
   ],

@@ -54,10 +54,32 @@ export function CommandPalette() {
     };
   }, [open, debouncedSearch, setList]);
 
-  // Reset the query each time the palette closes.
+  // Reset the query each time the palette closes, and hand focus back to the
+  // document. Without the blur, focus stays on the (now hidden) search box and
+  // every global shortcut that declines to fire inside an input — which is all
+  // of them except ⌘K — is silently dead until you click something.
   useEffect(() => {
-    if (!open) setSearch('');
+    if (open) return;
+    setSearch('');
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest('[cmdk-root]')) {
+      active.blur();
+    }
   }, [open]);
+
+  // Escape closes it. cmdk only wires this up for its own Dialog wrapper, and
+  // this is a bare Command inside our own overlay.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, setOpen]);
 
   const go = (to: string) => {
     setOpen(false);
@@ -138,7 +160,7 @@ export function CommandPalette() {
                   <Command.Item value="new post create" onSelect={() => go('/posts/new')}>
                     <PlusCircle size={16} />
                     New post
-                    <Kbd keys="mod+n" className="ml-auto" />
+                    <Kbd keys="mod+i" className="ml-auto" />
                   </Command.Item>
                   <Command.Item value="upload media" onSelect={() => go('/media?upload=1')}>
                     <UploadSimple size={16} />

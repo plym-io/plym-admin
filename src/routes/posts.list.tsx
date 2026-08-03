@@ -260,7 +260,7 @@ export default function PostsList() {
                   className="inline-flex items-center gap-2 rounded-md bg-fg px-4 py-2 text-sm font-medium text-bg transition-colors hover:bg-fg/90"
                 >
                   <PencilSimpleLine size={16} /> New post
-                  <Kbd keys="mod+n" className="border-white/20 bg-white/10 text-white/80" />
+                  <Kbd keys="mod+i" className="border-bg/25 bg-bg/10 text-bg/80" />
                 </button>
               }
             />

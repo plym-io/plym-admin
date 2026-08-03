@@ -23,7 +23,7 @@ export default function Tags() {
     <Page width="text">
       <PageHeader
         title="Tags"
-        description="Created automatically when used on a post. To control display order, use categories."
+        description="Created automatically when used on a post."
       />
 
       {loading ? (
@@ -40,7 +40,7 @@ export default function Tags() {
           hint="Tags appear here once you add them to a post."
         />
       ) : (
-        <div className="mt-6 divide-y divide-border rounded-lg border border-border">
+        <div className="mt-6 divide-y divide-border overflow-hidden rounded-xl border border-border bg-bg shadow-xs">
           {tags.map((t) => (
             <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
               <span className="inline-flex items-center gap-1 rounded-pill bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
