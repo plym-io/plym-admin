@@ -87,84 +87,306 @@ CHANGES = [
     {"key": "pagination.page_size", "from": 20, "to": 10, "at": "2026-07-28T16:02:00Z", "actor": "root@plym.local"},
 ]
 
-GATEWAYS = [
-    {
-        "id": "cloudflare",
-        "label": "Cloudflare",
-        "description": "Your domain's DNS and CDN are on Cloudflare.",
-        "strategies": [
-            {"id": "worker", "label": "Worker", "applicable": True, "recommended": True, "support": "native",
-             "summary": "A Worker on client.com forwards /blog to your plym blog."},
-            {"id": "subdomain", "label": "Subdomain", "applicable": True, "support": "best",
-             "summary": "blog.client.com points straight at plym — the simplest option."},
-            {"id": "path-proxy", "label": "Path proxy", "applicable": False,
-             "blocked_reason": "Cloudflare cannot proxy a path without a Worker on the paid plan."},
-        ],
-    },
-    {
-        "id": "nginx",
-        "label": "nginx",
-        "description": "You run nginx in front of your own site.",
-        "strategies": [
-            {"id": "path-proxy", "label": "Path proxy", "applicable": True, "recommended": True, "support": "best",
-             "summary": "nginx forwards client.com/blog to your plym blog."},
-            {"id": "subdomain", "label": "Subdomain", "applicable": True, "support": "native",
-             "summary": "blog.client.com resolves to plym directly, bypassing nginx."},
-        ],
-    },
-    {"id": "vercel", "label": "Vercel", "description": "Your marketing site is deployed on Vercel.",
-     "strategies": [{"id": "rewrite", "label": "Rewrite", "applicable": True, "recommended": True,
-                     "summary": "A rewrite in vercel.json sends /blog to plym."}]},
-    {"id": "shopify", "label": "Shopify", "description": "Your storefront runs on Shopify.",
-     "strategies": [{"id": "subdomain", "label": "Subdomain", "applicable": True, "recommended": True,
-                     "summary": "Shopify cannot proxy a path, so the blog lives on a subdomain."}]},
+ORIGIN_HOST = "acme.plym.space"
+PLATFORM_DOMAIN = "plym.space"
+SLUG = "acme"
+
+# Where the blog sits when nobody has asked for anywhere else: its own plym
+# hostname, at the root of it. This is what the panel shows as "right now".
+HOME = {"host": ORIGIN_HOST, "prefix": ""}
+
+COMPOUND_SUFFIX = re.compile(r"\.(?:co|com|net|org|gov|edu|ac)\.[a-z]{2}$", re.I)
+
+
+def _labels(host):
+    return len(host.split(".")) - (1 if COMPOUND_SUFFIX.search(host) else 0)
+
+
+def parse_home(url):
+    """`?home=` as the gateway reads it: a hostname and a mount prefix."""
+    from urllib.parse import urlparse
+    if not url:
+        return None
+    parsed = urlparse(url if "//" in url else f"https://{url}")
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return None
+    return {"host": host, "prefix": parsed.path.rstrip("/")}
+
+
+def placement(home=None):
+    """The blog's placement, or the destination when a `home` was asked for."""
+    where = home or HOME
+    host, prefix = where["host"], where["prefix"]
+    external = not (host == PLATFORM_DOMAIN or host.endswith("." + PLATFORM_DOMAIN))
+    return {
+        "slug": SLUG,
+        "origin_host": ORIGIN_HOST,
+        "origin_url": f"https://{ORIGIN_HOST}",
+        "platform_domain": PLATFORM_DOMAIN,
+        "public_host": host,
+        "public_url": f"https://{host}{prefix}",
+        "prefix": prefix,
+        "blog_home": f"https://{host}{prefix}",
+        "admin_url": f"https://{host}{prefix}/plym-admin/",
+        "subdomain_host": f"blog.{host}" if _labels(host) <= 2 else host,
+        "at_root": prefix == "",
+        "external_domain": external,
+        "destination": home is not None,
+    }
+
+
+KINDS = [
+    {"id": "path-proxy", "label": "Under a path", "summary": "Your own server forwards one folder to plym."},
+    {"id": "front-door", "label": "At the edge", "summary": "Your CDN or platform rewrites the request before it reaches your app."},
+    {"id": "subdomain", "label": "On a subdomain", "summary": "A DNS record points a subdomain straight at plym."},
 ]
 
-PLACEMENT = {"host": "client.com", "prefix": "/blog", "url": "https://client.com/blog"}
+CONTRACT = [
+    "Forward the Host header unchanged — plym decides which blog to serve from it.",
+    "Don't rewrite the path: /blog/x must arrive as /blog/x.",
+    "Let plym terminate TLS on its own hostname.",
+]
 
-STEPS = {
-    ("nginx", "path-proxy"): [
-        {"actor": "customer", "title": "Add a location block", "body": "Inside the server block for client.com.",
-         "snippet": "location /blog/ {\n    proxy_pass https://acme.plym.app/blog/;\n    proxy_set_header Host acme.plym.app;\n    proxy_ssl_server_name on;\n}"},
-        {"actor": "customer", "title": "Reload nginx", "snippet": "sudo nginx -t && sudo nginx -s reload"},
-        {"actor": "plym", "title": "We issue the certificate", "body": "Nothing for you to do — this happens within a minute of the first request."},
-    ],
-    ("nginx", "subdomain"): [
-        {"actor": "customer", "title": "Create a CNAME", "body": "At your DNS provider, for blog.client.com.",
-         "snippet": "blog.client.com.  CNAME  acme.plym.app."},
-        {"actor": "plym", "title": "We issue the certificate", "body": "Automatically, once the record resolves."},
-    ],
-    ("cloudflare", "worker"): [
-        {"actor": "customer", "title": "Create a Worker", "snippet": "export default {\n  async fetch(request) {\n    const url = new URL(request.url);\n    url.hostname = 'acme.plym.app';\n    return fetch(url, request);\n  }\n};"},
-        {"actor": "customer", "title": "Add a route", "body": "Route client.com/blog* to the Worker."},
-    ],
-    ("cloudflare", "subdomain"): [
-        {"actor": "customer", "title": "Add a CNAME, DNS-only", "body": "Turn the orange cloud off — plym terminates TLS.",
-         "snippet": "blog.client.com.  CNAME  acme.plym.app."},
-    ],
-    ("cloudflare", "path-proxy"): [],
-    ("vercel", "rewrite"): [
-        {"actor": "customer", "title": "Add a rewrite", "snippet": "{\n  \"rewrites\": [\n    { \"source\": \"/blog/:path*\", \"destination\": \"https://acme.plym.app/blog/:path*\" }\n  ]\n}"},
-        {"actor": "customer", "title": "Redeploy", "snippet": "vercel --prod"},
-    ],
-    ("shopify", "subdomain"): [
-        {"actor": "customer", "title": "Add a CNAME", "snippet": "blog.client.com.  CNAME  acme.plym.app."},
-    ],
+# id, name, category, summary, [(strategy id, kind, title, support)]
+CATALOGUE = [
+    ("cloudflare", "Cloudflare", "cdn", "Your domain's DNS and CDN are on Cloudflare.",
+     [("worker", "front-door", "Cloudflare Worker", "supported"),
+      ("subdomain", "subdomain", "Subdomain, DNS-only", "supported"),
+      ("path-proxy", "path-proxy", "Origin rule", "advanced")]),
+    ("fastly", "Fastly", "cdn", "Fastly sits in front of your origin.",
+     [("backend", "front-door", "Second backend", "supported"),
+      ("subdomain", "subdomain", "Subdomain", "supported")]),
+    ("cloudfront", "AWS CloudFront", "cdn", "CloudFront distributes your site.",
+     [("behavior", "front-door", "Cache behaviour", "supported"),
+      ("subdomain", "subdomain", "Subdomain", "supported")]),
+    ("nginx", "nginx", "web-server", "You run nginx in front of your own site.",
+     [("path-proxy", "path-proxy", "Location block", "supported"),
+      ("subdomain", "subdomain", "Subdomain", "supported")]),
+    ("apache", "Apache", "web-server", "Apache httpd serves your site.",
+     [("path-proxy", "path-proxy", "ProxyPass", "supported"),
+      ("subdomain", "subdomain", "Subdomain", "supported")]),
+    ("caddy", "Caddy", "web-server", "Caddy serves your site.",
+     [("path-proxy", "path-proxy", "Handle block", "supported"),
+      ("subdomain", "subdomain", "Subdomain", "supported")]),
+    ("vercel", "Vercel", "platform", "Your marketing site is deployed on Vercel.",
+     [("rewrite", "front-door", "vercel.json rewrite", "supported"),
+      ("subdomain", "subdomain", "Subdomain", "supported")]),
+    ("netlify", "Netlify", "platform", "Netlify builds and serves your site.",
+     [("redirect", "front-door", "_redirects proxy", "supported"),
+      ("subdomain", "subdomain", "Subdomain", "supported")]),
+    ("shopify", "Shopify", "ecommerce", "Your storefront runs on Shopify.",
+     [("subdomain", "subdomain", "Subdomain", "supported"),
+      ("path-proxy", "path-proxy", "App proxy", "not-recommended")]),
+    ("webflow", "Webflow", "site-builder", "Your site is built in Webflow.",
+     [("subdomain", "subdomain", "Subdomain", "supported")]),
+    ("squarespace", "Squarespace", "site-builder", "Squarespace hosts your site.",
+     [("subdomain", "subdomain", "Subdomain", "supported")]),
+    ("wordpress", "WordPress", "site-builder", "A WordPress install serves your domain.",
+     [("subdomain", "subdomain", "Subdomain", "supported"),
+      ("path-proxy", "path-proxy", "Reverse proxy", "advanced")]),
+]
+
+DOCS = {
+    "cloudflare": [{"title": "Cloudflare Workers routes", "url": "https://developers.cloudflare.com/workers/configuration/routing/"}],
+    "nginx": [{"title": "nginx proxy_pass", "url": "https://nginx.org/en/docs/http/ngx_http_proxy_module.html"}],
+    "vercel": [{"title": "Vercel rewrites", "url": "https://vercel.com/docs/edge-network/rewrites"}],
 }
 
-CHECKS = {
-    "path-proxy": [{"command": "curl -sI https://client.com/blog/ | head -1", "expect": "HTTP/2 200"}],
-    "subdomain": [{"command": "dig +short blog.client.com", "expect": "acme.plym.app."},
-                  {"command": "curl -sI https://blog.client.com/ | head -1", "expect": "HTTP/2 200"}],
-    "worker": [{"command": "curl -sI https://client.com/blog/ | head -1", "expect": "HTTP/2 200"}],
-    "rewrite": [{"command": "curl -sI https://client.com/blog/ | head -1", "expect": "HTTP/2 200"}],
+STRATEGY_SUMMARY = {
+    "path-proxy": "Your server keeps serving the site and quietly forwards one folder to plym.",
+    "front-door": "Your CDN answers as usual and sends just the blog's requests to plym.",
+    "subdomain": "One DNS record. Nothing in front of it, so there is nothing to keep in sync.",
 }
+
+
+def _blocked(kind, dest):
+    """Why a way of connecting cannot serve the address the owner asked for."""
+    if kind in ("path-proxy",) and not dest["prefix"]:
+        return "That address has no path, so there is nothing for a proxy to match. Use a subdomain instead."
+    if kind == "subdomain" and _labels(dest["public_host"]) <= 2:
+        return f"That is the domain itself, not a subdomain. Try blog.{dest['public_host']}."
+    if kind == "subdomain" and dest["prefix"]:
+        return "A subdomain serves the whole host, so it cannot live under a path."
+    return None
+
+
+def _steps(gid, sid, kind, dest):
+    """The owner's work, rendered against the real hosts. Never plym's."""
+    host, prefix = dest["public_host"], dest["prefix"]
+    up = ORIGIN_HOST
+    if kind == "subdomain":
+        return [{
+            "actor": "customer",
+            "title": f"Add a CNAME record for {host}",
+            "detail": ("At your DNS provider." if gid != "cloudflare"
+                       else "In the Cloudflare DNS tab. Set the proxy status to DNS only — the grey cloud — so plym can issue the certificate."),
+            "snippet": {"label": "DNS record", "language": "dns", "filename": None,
+                        "body": f"{host}.\tCNAME\t{up}."},
+        }]
+    if gid == "nginx":
+        return [
+            {"actor": "customer", "title": "Add a location block",
+             "detail": f"Inside the server block that already answers for {host}.",
+             "snippet": {"label": "nginx", "language": "nginx", "filename": f"/etc/nginx/sites-enabled/{host}",
+                         "body": f"location {prefix}/ {{\n    proxy_pass https://{up}{prefix}/;\n    proxy_set_header Host {up};\n    proxy_ssl_server_name on;\n}}"}},
+            {"actor": "customer", "title": "Test the config and reload",
+             "detail": "Reloading is graceful — no requests are dropped.",
+             "snippet": {"label": "Shell", "language": "shell", "filename": None,
+                         "body": "sudo nginx -t && sudo nginx -s reload"}},
+        ]
+    if gid == "apache":
+        return [
+            {"actor": "customer", "title": "Add a ProxyPass",
+             "detail": f"In the VirtualHost for {host}. mod_proxy and mod_proxy_http must be enabled.",
+             "snippet": {"label": "Apache", "language": "apache", "filename": f"/etc/apache2/sites-enabled/{host}.conf",
+                         "body": f"SSLProxyEngine on\nProxyPreserveHost Off\nProxyPass {prefix}/ https://{up}{prefix}/\nProxyPassReverse {prefix}/ https://{up}{prefix}/"}},
+            {"actor": "customer", "title": "Reload Apache",
+             "snippet": {"label": "Shell", "language": "shell", "filename": None,
+                         "body": "sudo apachectl configtest && sudo systemctl reload apache2"}},
+        ]
+    if gid == "caddy":
+        return [
+            {"actor": "customer", "title": "Add a handle block",
+             "snippet": {"label": "Caddyfile", "language": "caddy", "filename": "/etc/caddy/Caddyfile",
+                         "body": f"{host} {{\n    handle {prefix}/* {{\n        reverse_proxy https://{up} {{\n            header_up Host {up}\n        }}\n    }}\n}}"}},
+            {"actor": "customer", "title": "Reload Caddy",
+             "snippet": {"label": "Shell", "language": "shell", "filename": None,
+                         "body": "sudo caddy reload --config /etc/caddy/Caddyfile"}},
+        ]
+    if gid == "cloudflare":
+        if sid == "worker":
+            return [
+                {"actor": "customer", "title": "Create a Worker",
+                 "detail": "Workers & Pages → Create → Worker. Paste this as its code.",
+                 "snippet": {"label": "Worker", "language": "javascript", "filename": "worker.js",
+                             "body": f"export default {{\n  async fetch(request) {{\n    const url = new URL(request.url);\n    url.hostname = '{up}';\n    return fetch(url, {{ ...request, headers: request.headers }});\n  }},\n}};"}},
+                {"actor": "customer", "title": "Route your blog path to it",
+                 "detail": f"Under the Worker's Settings → Domains & Routes, add the route below.",
+                 "snippet": {"label": "Route", "language": "text", "filename": None,
+                             "body": f"{host}{prefix}/*"}},
+            ]
+        return [
+            {"actor": "customer", "title": "Add an origin rule",
+             "detail": f"Rules → Origin Rules → Create. Match the path and override the host.",
+             "snippet": {"label": "Expression", "language": "text", "filename": None,
+                         "body": f'(http.host eq "{host}" and starts_with(http.request.uri.path, "{prefix}"))\n→ Host header: {up}'}},
+        ]
+    if gid == "vercel":
+        return [
+            {"actor": "customer", "title": "Add a rewrite",
+             "detail": "In the project root, next to your package.json.",
+             "snippet": {"label": "JSON", "language": "json", "filename": "vercel.json",
+                         "body": '{\n  "rewrites": [\n    {\n      "source": "%s/:path*",\n      "destination": "https://%s%s/:path*"\n    }\n  ]\n}' % (prefix, up, prefix)}},
+            {"actor": "customer", "title": "Deploy it",
+             "snippet": {"label": "Shell", "language": "shell", "filename": None, "body": "vercel --prod"}},
+        ]
+    if gid == "netlify":
+        return [
+            {"actor": "customer", "title": "Add a proxy redirect",
+             "detail": "The 200 status is what makes it a proxy rather than a redirect.",
+             "snippet": {"label": "Redirects", "language": "text", "filename": "public/_redirects",
+                         "body": f"{prefix}/*  https://{up}{prefix}/:splat  200"}},
+            {"actor": "customer", "title": "Deploy the site"},
+        ]
+    if gid in ("fastly", "cloudfront"):
+        noun = "backend" if gid == "fastly" else "origin"
+        return [
+            {"actor": "customer", "title": f"Add plym as a {noun}",
+             "detail": f"Point it at {up} over HTTPS, and override the Host header to the same value.",
+             "snippet": {"label": "Origin", "language": "text", "filename": None,
+                         "body": f"host: {up}\nport: 443\ntls: on\noverride host: {up}"}},
+            {"actor": "customer", "title": f"Send {prefix}/* to it",
+             "detail": f"Match the path prefix {prefix} and route it to the new {noun}."},
+        ]
+    return [
+        {"actor": "customer", "title": f"Forward {prefix}/ to plym",
+         "detail": f"However your platform proxies a path, send it to {up} with the Host header set to {up}.",
+         "snippet": {"label": "Upstream", "language": "text", "filename": None,
+                     "body": f"https://{up}{prefix}/"}},
+    ]
+
+
+def _platform(kind):
+    if kind == "subdomain":
+        return [{"actor": "plym", "title": "Register the hostname and order its certificate",
+                 "detail": "in the same step, as soon as you press the button below"}]
+    return [{"actor": "plym", "title": "Re-render every page for the new address",
+             "detail": "canonical tags and sitemap included"}]
+
+
+def _checks(dest):
+    url = f"https://{dest['public_host']}{dest['prefix']}"
+    checks = [{"title": "The blog answers on your domain",
+               "command": f"curl -sI {url}/ | head -1", "expect": "HTTP/2 200"}]
+    if not dest["prefix"]:
+        checks.insert(0, {"title": "DNS points at plym",
+                          "command": f"dig +short {dest['public_host']}",
+                          "expect": f"{ORIGIN_HOST}."})
+    return checks
+
 
 CAVEATS = {
-    "path-proxy": ["Your CDN may cache the blog — set a max-age you're happy with.",
-                   "Every published URL keeps the /blog prefix."],
-    "subdomain": ["Readers see blog.client.com, not client.com/blog."],
+    "path-proxy": ["Your CDN may cache the blog — set a max-age you are happy with.",
+                   "Every published URL keeps the path you chose."],
+    "front-door": ["Requests take one extra hop through your edge."],
+    "subdomain": ["Readers see the subdomain, not a folder on your main site."],
 }
+
+REQUIRES = {
+    "subdomain": ["Permission to add a DNS record for the domain"],
+    "path-proxy": ["Access to the configuration of whatever serves the domain today",
+                   "Somewhere to reload it once you have saved"],
+    "front-door": ["An account with edit rights on the edge configuration"],
+}
+
+
+def strategies_for(gid, kinds, dest, wanted=None, full=False):
+    out = []
+    for sid, kind, title, support in kinds:
+        if wanted and sid != wanted:
+            continue
+        blocked = _blocked(kind, dest)
+        entry = {"id": sid, "kind": kind, "title": title, "support": support,
+                 "summary": STRATEGY_SUMMARY[kind],
+                 "applicable": blocked is None, "blocked_reason": blocked}
+        if full:
+            register = kind == "subdomain"
+            entry.update({
+                "steps": _steps(gid, sid, kind, dest) if blocked is None else [],
+                "platform": _platform(kind) if blocked is None else [],
+                "finish": None if blocked else {
+                    "title": "Ready when you are",
+                    "detail": "Once your change is saved, this moves the blog and rewrites every URL for the new address.",
+                    "home": f"https://{dest['public_host']}{dest['prefix']}",
+                    "register_hostname": register,
+                },
+                "checks": _checks(dest) if blocked is None else [],
+                "requires": REQUIRES[kind] if blocked is None else [],
+                "caveats": CAVEATS[kind] if blocked is None else [],
+                "docs": DOCS.get(gid, []),
+                "register_hostname": register,
+            })
+        out.append(entry)
+    return out
+
+
+def routing_options(dest):
+    gateways = []
+    for gid, name, category, summary, kinds in CATALOGUE:
+        strategies = strategies_for(gid, kinds, dest)
+        gateways.append({"id": gid, "name": name, "category": category, "summary": summary,
+                         "applicable": any(s["applicable"] for s in strategies),
+                         "strategies": strategies, "docs": DOCS.get(gid, [])})
+    pick = "nginx" if dest["prefix"] else "cloudflare"
+    why = ("Most sites that serve a folder already have a web server doing it — start here if you run your own."
+           if dest["prefix"] else
+           "A subdomain needs one DNS record and nothing else, and most domains have their DNS here.")
+    strategy = "path-proxy" if dest["prefix"] else "subdomain"
+    return {"placement": dest, "kinds": KINDS,
+            "recommended": {"gateway": pick, "strategy": strategy, "why": why},
+            "gateways": gateways}
+
 
 OPS = {}
 OPS_LOCK = threading.Lock()
@@ -177,6 +399,14 @@ EVENT_SCRIPT = {
         (2.6, "warn", "Container took 2.1s to become healthy"),
         (3.4, "info", "Re-rendering 12 published posts"),
         (4.4, "done", "Applied 1 change. The blog is live."),
+    ],
+    "home": [
+        (0.0, "info", "Validating the destination"),
+        (0.7, "info", "Registering the hostname on the edge"),
+        (1.6, "info", "Ordering the TLS certificate"),
+        (2.5, "info", "Re-rendering 12 published posts for the new address"),
+        (3.6, "info", "Purging the CDN"),
+        (4.4, "done", "Your blog now answers on its new address."),
     ],
     "reload": [
         (0.0, "info", "Validating the settings document"),
@@ -278,31 +508,44 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/settings/changes":
             return 200, CHANGES[:int(query.get("limit", ["50"])[0])]
         if path == "/status":
-            return 200, {"url": "https://client.com/blog", "prefix": "/blog", "running": True,
+            here = placement()
+            return 200, {"url": here["public_url"], "prefix": here["prefix"], "running": True,
                          "state": "healthy", "image": "plymio/plym:1.2.0", "admin_version": "1.1.0"}
         if path == "/templates":
             return 200, TEMPLATES
+        if path == "/gateways":
+            return 200, {"gateways": routing_options(placement())["gateways"], "kinds": KINDS,
+                         "example": placement(parse_home("https://www.example.com/blog")),
+                         "contract": CONTRACT}
+        if path == "/home" and method == "PUT":
+            url = body.get("url")
+            home = parse_home(url)
+            if not home:
+                return 422, {"kind": "invalid", "error": "invalid",
+                             "message": "That is not an address plym can serve from.",
+                             "remedy": "Pass a full https:// URL."}
+            op = start_op("home", "home")
+            globals()["HOME"] = home
+            return 202, {"op_id": op["op_id"], "verb": "home", "target": SLUG, "state": "queued"}
         if path == "/routing":
-            return 200, {"placement": PLACEMENT, "gateways": GATEWAYS,
-                         "recommended": {"gateway": "nginx", "strategy": "path-proxy"}}
+            dest = placement(parse_home(query.get("home", [None])[0]))
+            return 200, routing_options(dest)
         m = re.fullmatch(r"/routing/([\w-]+)", path)
         if m:
             gid = m.group(1)
-            gw = next((g for g in GATEWAYS if g["id"] == gid), None)
-            if not gw:
+            entry = next((g for g in CATALOGUE if g[0] == gid), None)
+            if not entry:
                 return 404, {"kind": "not_found", "error": "not_found", "message": f"No guide for {gid}."}
+            _, name, category, summary, kinds = entry
+            dest = placement(parse_home(query.get("home", [None])[0]))
             wanted = query.get("strategy", [None])[0]
-            strategies = []
-            for s in gw["strategies"]:
-                if wanted and s["id"] != wanted:
-                    continue
-                strategies.append({**s,
-                                   "requires": ["Access to your DNS records"] if "subdomain" in s["id"] else ["Access to your edge configuration"],
-                                   "steps": STEPS.get((gid, s["id"]), []),
-                                   "checks": CHECKS.get(s["id"], []),
-                                   "caveats": CAVEATS.get(s["id"], [])})
-            return 200, {"gateway": {"id": gw["id"], "label": gw["label"]}, "placement": PLACEMENT,
-                         "strategies": strategies}
+            return 200, {
+                "placement": dest,
+                "gateway": {"id": gid, "name": name, "category": category, "summary": summary,
+                            "docs": DOCS.get(gid, [])},
+                "contract": CONTRACT,
+                "strategies": strategies_for(gid, kinds, dest, wanted, full=True),
+            }
         m = re.fullmatch(r"/ops/([\w-]+)/events", path)
         if m:
             page = op_page(m.group(1), int(query.get("after", ["0"])[0]))
