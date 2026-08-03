@@ -31,6 +31,9 @@ function adminRedirect(): Plugin {
 }
 const proxied = [
   '/api',
+  // The plym-cloud tenant gateway, when there is one. On an OSS target this
+  // 404s, which is exactly what the panel's edition probe expects to see.
+  '/cloud',
   '/blog',
   '/media',
   '/sitemap.xml',

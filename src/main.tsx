@@ -2,7 +2,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
 import { App } from './App';
+import { detectEditionOnce } from './store/cloud';
 import './styles/globals.css';
+
+// OSS or plym cloud. Started here so it runs alongside the session check
+// rather than after it — the shell needs the answer before it can draw.
+void detectEditionOnce();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

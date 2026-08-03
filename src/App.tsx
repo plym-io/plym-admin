@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider } from 'react-router';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router';
 import { Suspense, lazy } from 'react';
 import { adminBase } from '@/lib/base';
 import { AppShell } from '@/components/layout/AppShell';
@@ -6,6 +6,7 @@ import { RequireAuth } from '@/components/layout/RequireAuth';
 import { RouteFallback } from '@/components/layout/RouteFallback';
 import { Placeholder } from '@/routes/placeholder';
 import { NAV } from '@/components/layout/nav';
+import { useIsCloud } from '@/store/cloud';
 
 const Login = lazy(() => import('@/routes/login'));
 const Home = lazy(() => import('@/routes/home'));
@@ -18,6 +19,11 @@ const Faqs = lazy(() => import('@/routes/faqs'));
 const Tags = lazy(() => import('@/routes/tags'));
 const Categories = lazy(() => import('@/routes/categories'));
 const Settings = lazy(() => import('@/routes/settings'));
+const Data = lazy(() => import('@/routes/data'));
+const Support = lazy(() => import('@/routes/support'));
+const Domain = lazy(() => import('@/routes/domain'));
+const Mcp = lazy(() => import('@/routes/mcp'));
+const Analytics = lazy(() => import('@/routes/analytics'));
 
 const wrap = (el: React.ReactNode) => (
   <Suspense fallback={<RouteFallback />}>{el}</Suspense>
@@ -29,45 +35,37 @@ const wrap = (el: React.ReactNode) => (
  * land on a page that says what will live there.
  */
 const STUBS: Record<string, { description: string; hint: string }> = {
-  '/mcp': {
-    description: 'Let assistants read and write this site over the Model Context Protocol.',
-    hint: 'Connection details and per-client tokens will be managed here.',
-  },
   '/api': {
     description: 'Programmatic access to posts, media and everything else.',
     hint: 'API keys and the endpoint reference will live here.',
   },
-  '/domain': {
-    description: 'The address this site answers on.',
-    hint: 'Custom domains, DNS records and certificates will be set up here.',
-  },
-  '/analytics': {
-    description: 'How the site is doing.',
-    hint: 'Traffic, referrers and per-post performance will be reported here.',
-  },
-  '/data': {
-    description: 'Your content, in your hands.',
-    hint: 'Exports, imports and backups will be handled here.',
-  },
-  '/support': {
-    description: 'Help with plym.',
-    hint: 'Docs, diagnostics and a way to reach a human will be here.',
-  },
 };
+
+/**
+ * A section that only exists on plym cloud. Self-hosted blogs have no gateway
+ * behind these screens, so a deep link goes home rather than to something
+ * broken — the sidebar doesn't offer them in the first place.
+ */
+function CloudOnly({ children }: { children: React.ReactNode }) {
+  return useIsCloud() ? <>{children}</> : <Navigate to="/" replace />;
+}
 
 const stubRoutes = NAV.flatMap((g) => g.items)
   .filter((item) => item.to in STUBS)
-  .map((item) => ({
-    path: item.to.slice(1),
-    element: (
+  .map((item) => {
+    const page = (
       <Placeholder
         title={item.label}
         icon={item.icon}
         description={STUBS[item.to].description}
         hint={STUBS[item.to].hint}
       />
-    ),
-  }));
+    );
+    return {
+      path: item.to.slice(1),
+      element: item.cloudOnly ? <CloudOnly>{page}</CloudOnly> : page,
+    };
+  });
 
 const router = createBrowserRouter(
   [
@@ -91,6 +89,32 @@ const router = createBrowserRouter(
         { path: 'tags', element: wrap(<Tags />) },
         { path: 'categories', element: wrap(<Categories />) },
         { path: 'settings', element: wrap(<Settings />) },
+        { path: 'data', element: wrap(<Data />) },
+        { path: 'support', element: wrap(<Support />) },
+        {
+          path: 'domain',
+          element: wrap(
+            <CloudOnly>
+              <Domain />
+            </CloudOnly>,
+          ),
+        },
+        {
+          path: 'mcp',
+          element: wrap(
+            <CloudOnly>
+              <Mcp />
+            </CloudOnly>,
+          ),
+        },
+        {
+          path: 'analytics',
+          element: wrap(
+            <CloudOnly>
+              <Analytics />
+            </CloudOnly>,
+          ),
+        },
         ...stubRoutes,
       ],
     },
