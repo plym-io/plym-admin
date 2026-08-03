@@ -330,6 +330,21 @@ export const SECTIONS: SectionSpec[] = [
   },
 ];
 
+/**
+ * Roots the settings screen deliberately doesn't render, because something else
+ * owns them. `mcp` has its own item in the sidebar, where the switch starts and
+ * stops a container and shows the operation as it runs — a second copy under
+ * Advanced would be a quieter way to do the same thing, and the two would
+ * disagree the moment either was used.
+ */
+const OWNED_ELSEWHERE = ['mcp'];
+
+/** True for a key some other screen is responsible for. */
+export function hasOwnScreen(key: string): boolean {
+  const dot = key.indexOf('.');
+  return OWNED_ELSEWHERE.includes(dot === -1 ? key : key.slice(0, dot));
+}
+
 function sectionFor(key: string): SectionSpec {
   const prefix = key.includes('.') ? key.slice(0, key.indexOf('.')) : null;
   for (const section of SECTIONS) {
@@ -349,11 +364,13 @@ export interface Section<T> {
 /**
  * Group anything key-shaped into the screen's sections, in `SECTIONS` order.
  * Empty sections are dropped — a deployment that publishes no branding keys
- * shouldn't show a Branding tab with nothing under it.
+ * shouldn't show a Branding tab with nothing under it — and so are the keys
+ * another screen owns.
  */
 export function sectionsFor<T extends { key: string }>(fields: T[]): Section<T>[] {
   const buckets = new Map<string, T[]>();
   for (const field of fields) {
+    if (hasOwnScreen(field.key)) continue;
     const section = sectionFor(field.key);
     const bucket = buckets.get(section.id);
     if (bucket) bucket.push(field);

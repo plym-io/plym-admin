@@ -13,6 +13,8 @@ export interface OpenApiDocument {
   info?: { title?: string; version?: string; description?: string };
   paths?: Record<string, Record<string, unknown>>;
   components?: { schemas?: Record<string, unknown> };
+  /** Document-wide security, applied to any operation that declares none. */
+  security?: unknown;
   [key: string]: unknown;
 }
 
@@ -52,7 +54,7 @@ export interface Operation {
   summary?: string;
   description?: string;
   deprecated: boolean;
-  /** True when the operation declares any security requirement. */
+  /** True when this operation — or the document on its behalf — demands a token. */
   secured: boolean;
   parameters: Parameter[];
   requestBody?: { required: boolean; schema?: unknown; mediaType?: string };
@@ -123,6 +125,31 @@ function toParameters(doc: OpenApiDocument, raw: unknown): Parameter[] {
     .filter((p) => p.name);
 }
 
+/**
+ * Whether an operation actually demands credentials.
+ *
+ * OpenAPI's default is open, not closed: an operation with no `security` of its
+ * own inherits the document's, and a document with no `security` either asks
+ * for nothing. plym declares `security` per operation and has no document-wide
+ * requirement, so the routes that leave it out — login, refresh, the public
+ * reads — are genuinely public, and a reference that stamped a bearer header on
+ * all of them would be telling readers to send a token they may not have yet.
+ *
+ * An empty list is an explicit opt-out, and a `{}` inside a non-empty list means
+ * "authentication is optional here" — both read as public.
+ */
+function isSecured(doc: OpenApiDocument, raw: Record<string, unknown>): boolean {
+  const declared = Array.isArray(raw.security)
+    ? raw.security
+    : Array.isArray(doc.security)
+      ? doc.security
+      : [];
+  return (
+    declared.length > 0 &&
+    !declared.some((requirement) => isRecord(requirement) && Object.keys(requirement).length === 0)
+  );
+}
+
 function toResponses(raw: unknown): ResponseEntry[] {
   if (!isRecord(raw)) return [];
   return Object.entries(raw)
@@ -170,8 +197,7 @@ export function listOperations(doc: OpenApiDocument): Operation[] {
         summary: typeof raw.summary === 'string' ? raw.summary : undefined,
         description: typeof raw.description === 'string' ? raw.description : undefined,
         deprecated: raw.deprecated === true,
-        // An empty `security: []` explicitly opts out; anything else opts in.
-        secured: Array.isArray(raw.security) ? raw.security.length > 0 : true,
+        secured: isSecured(doc, raw),
         parameters: [...shared, ...toParameters(doc, raw.parameters)],
         requestBody: isRecord(raw.requestBody)
           ? {
