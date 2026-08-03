@@ -107,7 +107,7 @@ export function ConfirmButton({
                   onConfirm();
                 }}
                 className={cn(
-                  'rounded-md px-2.5 py-1 text-[13px] font-medium text-white transition-colors',
+                  'rounded-md px-2.5 py-1 text-[13px] font-medium text-bg transition-colors',
                   tone === 'danger'
                     ? 'bg-danger hover:brightness-110'
                     : 'bg-fg hover:bg-fg/90',

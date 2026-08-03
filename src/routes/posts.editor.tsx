@@ -355,7 +355,7 @@ export default function PostEditor() {
         ).catch(() => {});
         toast.success(
           status === 'published'
-            ? 'Live. The rendered file is up to date.'
+            ? 'Published.'
             : `Moved to ${status}.`,
         );
       } catch (e) {
@@ -589,7 +589,7 @@ export default function PostEditor() {
             />
           </div>
 
-          <div className="mt-4 flex min-h-0 flex-1 border-t border-border">
+          <div className="mt-4 flex min-h-0 flex-1 border-t border-border pt-3">
             <div className="mx-auto w-full max-w-3xl min-w-0 overflow-hidden px-8">
               <MarkdownEditor
                 value={draft.content}

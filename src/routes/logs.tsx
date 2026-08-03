@@ -86,7 +86,7 @@ export default function Logs() {
     <Page width="text">
       <PageHeader
         title="Activity"
-        description="Everything that's happened, newest first."
+        description="Newest first."
       />
 
       <div className="mt-5 flex items-center gap-1 rounded-md bg-bg-muted p-0.5">

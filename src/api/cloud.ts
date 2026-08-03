@@ -17,6 +17,8 @@ import type {
   RoutingOptions,
   SettingsChange,
   SettingsDocument,
+  TemplateCatalog,
+  TemplateSource,
   TenantStatus,
 } from '@/types/cloud';
 
@@ -147,6 +149,48 @@ export function applySettings(patch: Record<string, unknown>): Promise<Accepted>
 
 export async function getSettingsChanges(limit = 20): Promise<SettingsChange[]> {
   return normalizeChangeLog(await request<unknown>(`/settings/changes?limit=${limit}`));
+}
+
+/* ── templates ────────────────────────────────────────────────────────── */
+
+/** Coerce a list field that an older gateway may omit entirely. */
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
+
+export async function getTemplates(): Promise<TemplateCatalog> {
+  const raw = (await request<unknown>('/templates')) as Record<string, unknown>;
+  return {
+    slug: typeof raw?.slug === 'string' ? raw.slug : undefined,
+    available: stringList(raw?.available),
+    active: typeof raw?.active === 'string' ? raw.active : null,
+    public: stringList(raw?.public),
+    // Empty when the tenant has no registry folder, or the registry isn't
+    // configured at all — both are ordinary, not an error to report.
+    private: stringList(raw?.private),
+    source: typeof raw?.source === 'string' ? raw.source : undefined,
+  };
+}
+
+/**
+ * Fetch a template into this blog. Installing restarts the container and
+ * re-renders every post, so it answers 202 with an op to poll — same loop the
+ * settings apply already uses.
+ */
+export function installTemplate(
+  name: string,
+  source: TemplateSource = 'public',
+  opts: { update?: boolean; ref?: string } = {},
+): Promise<Accepted> {
+  return request<Accepted>('/templates', {
+    method: 'POST',
+    body: {
+      name,
+      source,
+      ...(opts.update ? { update: true } : {}),
+      ...(opts.ref ? { ref: opts.ref } : {}),
+    },
+  });
 }
 
 /* ── operations ───────────────────────────────────────────────────────── */

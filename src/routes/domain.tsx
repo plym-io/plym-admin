@@ -178,12 +178,12 @@ export default function Domain() {
     <Page width="text">
       <PageHeader
         title="Your domain"
-        description="Put this blog on an address you own — blog.acme.com, or a folder on the site you already have."
+        description="Serve this blog on a domain you own."
       />
 
       {/* Where it answers today. Stated, not celebrated: it is the starting
           point of this screen, not its destination. */}
-      <div className="mt-6 flex items-center gap-4 rounded-lg border border-border p-4">
+      <div className="mt-6 flex items-center gap-4 rounded-xl border border-border bg-bg p-4 shadow-xs">
         <Globe size={20} weight="duotone" className="shrink-0 text-fg-subtle" />
         <div className="min-w-0 flex-1">
           <p className="text-[13px] text-fg-muted">
@@ -231,7 +231,7 @@ export default function Domain() {
             index={1}
             state={stateOf(1, stage)}
             title="Where should your blog live?"
-            hint="Type the address you want people to visit. It has to be a domain you control — plym does the rest."
+            hint="The address you want people to visit."
             summary={
               destination && (
                 <>

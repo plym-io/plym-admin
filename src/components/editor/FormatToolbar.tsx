@@ -21,13 +21,18 @@ export interface EditorActions {
 /**
  * The formatting bar above the writing surface. Everything here is also a "/"
  * command or a shortcut — it's here so you don't have to know that.
+ *
+ * It is a contained bar rather than a rule across the column: the writing area
+ * is inset from the page, so a bare `border-b` began and ended in mid-air with
+ * the buttons hanging off its left edge. Boxing it gives the controls an
+ * enclosure of their own and keeps them clear of the prose below.
  */
 export function FormatToolbar({ actions }: { actions: EditorActions }) {
   return (
     <div
       role="toolbar"
       aria-label="Formatting"
-      className="flex shrink-0 items-center gap-0.5 border-b border-border py-1"
+      className="mb-3 flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-bg-subtle px-1.5 py-1 shadow-xs"
     >
       <ToolButton
         icon={TextB}
@@ -59,8 +64,12 @@ export function FormatToolbar({ actions }: { actions: EditorActions }) {
         label="Upload an image"
         onClick={actions.upload}
       />
-      <span className="ml-auto pr-1 text-[11px] text-fg-subtle">
-        Type <span className="font-medium text-fg-muted">/</span> for more
+      <span className="ml-auto hidden pr-1.5 text-[11px] text-fg-subtle sm:inline">
+        Type{' '}
+        <kbd className="rounded border border-border bg-bg px-1 font-mono text-[10.5px] text-fg-muted">
+          /
+        </kbd>{' '}
+        for more
       </span>
     </div>
   );
@@ -92,7 +101,7 @@ function ToolButton({
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className={cn(
-        'flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg',
+        'flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-bg hover:text-fg hover:shadow-xs',
         className,
       )}
     >

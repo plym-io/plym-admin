@@ -324,7 +324,7 @@ export default function Media() {
             </h2>
             <p className="mt-1 text-sm text-fg-muted">{inUse.message}</p>
             {inUse.posts.length > 0 && (
-              <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
+              <ul className="mt-4 divide-y divide-border overflow-hidden rounded-lg border border-border bg-bg">
                 {inUse.posts.map((p) => (
                   <li key={p.id}>
                     <button

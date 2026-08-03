@@ -129,7 +129,7 @@ export function FinishDomain({
         <p className="mt-0.5 text-[13.5px] leading-relaxed text-fg-muted">{finish.detail}</p>
       )}
 
-      <div className="mt-3 rounded-lg border border-border p-4">
+      <div className="mt-3 rounded-lg border border-border bg-bg p-4">
         <p className="text-[13px] text-fg-muted">Your blog will move to</p>
         <p className="mt-0.5 break-all font-mono text-[14px] text-fg">{finish.home}</p>
         <p className="mt-2 text-[13px] text-fg-muted">

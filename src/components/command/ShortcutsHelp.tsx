@@ -7,7 +7,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
     title: 'Global',
     items: [
       ['mod+k', 'Open command palette'],
-      ['mod+n', 'New post'],
+      ['mod+i', 'New post'],
       ['mod+b', 'Toggle sidebar'],
       ['?', 'This help'],
     ],
@@ -34,9 +34,6 @@ export function ShortcutsHelp() {
         <h2 className="text-lg font-semibold tracking-tight">
           Keyboard shortcuts
         </h2>
-        <p className="mt-1 text-sm text-fg-muted">
-          plym is built for the keyboard. These work from anywhere.
-        </p>
         <div className="mt-6 space-y-6">
           {GROUPS.map((g) => (
             <div key={g.title}>

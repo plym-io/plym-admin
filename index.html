@@ -15,6 +15,24 @@
       rel="stylesheet"
     />
     <title>plym - Admin</title>
+    <!-- Theme before first paint. The store reaches the same answer a moment
+         later, but a module bundle is far too late to decide the background
+         colour — without this the panel flashes light on every load. -->
+    <script>
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('plym.theme') || 'null');
+          var pref = (saved && saved.state && saved.state.preference) || 'system';
+          var dark =
+            pref === 'dark' ||
+            (pref === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

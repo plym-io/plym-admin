@@ -4,6 +4,7 @@ import {
   displayValue,
   flatten,
   groupSchema,
+  sectionsFor,
   initialDraft,
   normalizePlan,
   normalizeSettings,
@@ -189,5 +190,42 @@ describe('displayValue', () => {
     expect(displayValue(true)).toBe('on');
     expect(displayValue('')).toBe('—');
     expect(displayValue(['a', 'b'])).toBe('a, b');
+  });
+});
+
+describe('sectionsFor', () => {
+  const keys = (fields: { key: string }[]) => fields.map((f) => f.key);
+
+  it('files reading and inject under Advanced, not under their own headings', () => {
+    const sections = sectionsFor([
+      { key: 'name' },
+      { key: 'reading.words_per_minute' },
+      { key: 'inject.head' },
+      { key: 'colors.primary' },
+    ]);
+    const byTitle = Object.fromEntries(sections.map((s) => [s.title, keys(s.fields)]));
+    expect(byTitle.Advanced).toEqual(['reading.words_per_minute', 'inject.head']);
+    expect(byTitle.General).toEqual(['name']);
+    expect(byTitle.Branding).toEqual(['colors.primary']);
+  });
+
+  it('keeps the sections in a fixed order regardless of schema order', () => {
+    const sections = sectionsFor([
+      { key: 'inject.body' },
+      { key: 'template' },
+      { key: 'name' },
+    ]);
+    expect(sections.map((s) => s.title)).toEqual(['General', 'Template', 'Advanced']);
+  });
+
+  it('drops a section nothing landed in', () => {
+    expect(sectionsFor([{ key: 'name' }]).map((s) => s.id)).toEqual(['general']);
+  });
+
+  it('puts a key it has never seen into Advanced rather than losing it', () => {
+    const sections = sectionsFor([{ key: 'experimental.thing' }, { key: 'whats_this' }]);
+    expect(sections).toHaveLength(1);
+    expect(keys(sections[0].fields)).toEqual(['experimental.thing', 'whats_this']);
+    expect(sections[0].id).toBe('advanced');
   });
 });

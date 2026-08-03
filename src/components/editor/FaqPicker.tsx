@@ -120,7 +120,7 @@ export function FaqPicker({ open, onClose, selected, onChange }: Props) {
                         className={cn(
                           'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
                           picked
-                            ? 'border-accent bg-accent text-white'
+                            ? 'border-accent bg-accent text-accent-fg'
                             : 'border-border-strong',
                         )}
                       >

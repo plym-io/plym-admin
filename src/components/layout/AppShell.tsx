@@ -36,18 +36,21 @@ export function AppShell() {
   // than paint an OSS sidebar and then grow four items under the user's cursor.
   if (!edition) {
     return (
-      <div className="flex h-screen items-center justify-center bg-bg">
+      <div className="flex h-screen items-center justify-center bg-canvas">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-accent" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-bg">
-      {!focusMode && <TopBar />}
-      <div className="flex min-h-0 flex-1">
-        {!focusMode && <Sidebar />}
-        <main className="min-w-0 flex-1 overflow-y-auto">
+    // Sidebar first, then the bar over the content: the navigation is the
+    // console's spine and runs full height beside it, rather than starting
+    // under a bar that spans the window.
+    <div className="flex h-screen overflow-hidden bg-canvas">
+      {!focusMode && <Sidebar />}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {!focusMode && <TopBar />}
+        <main id="plym-main" className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-canvas">
           <motion.div
             key={transitionKey}
             initial={{ opacity: 0 }}

@@ -115,7 +115,7 @@ export function DeployModal({ open, patch, onClose, onApplied }: Props) {
 
         {!opId && (plan || planError) && (
           <>
-            <dl className="mt-4 divide-y divide-border overflow-hidden rounded-lg border border-border">
+            <dl className="mt-4 divide-y divide-border overflow-hidden rounded-lg border border-border bg-bg">
               {rows.map((c) => (
                 <div key={c.key} className="flex items-center gap-3 px-3 py-2">
                   <dt

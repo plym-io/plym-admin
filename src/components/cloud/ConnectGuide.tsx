@@ -150,7 +150,7 @@ export function ConnectGuide({ strategy }: { strategy: GuideStrategy }) {
       {/* plym's own work. Named so nobody goes looking for a task that isn't
           theirs, and deliberately not a numbered step. */}
       {strategy.platform.length > 0 && (
-        <div className="flex gap-2.5 rounded-lg border border-border px-3.5 py-3">
+        <div className="flex gap-2.5 rounded-lg border border-border bg-bg px-3.5 py-3">
           <Lightning size={15} weight="fill" className="mt-px shrink-0 text-accent" />
           <div className="min-w-0">
             <p className="text-[13px] font-medium text-fg">plym handles the rest</p>
