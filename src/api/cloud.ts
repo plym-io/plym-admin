@@ -157,16 +157,47 @@ export function getOpEvents(opId: string, after = 0): Promise<EventPage> {
 
 /* ── routing ──────────────────────────────────────────────────────────── */
 
-export async function getRouting(): Promise<RoutingOptions> {
-  return normalizeRouting(await request<unknown>('/routing'));
+function query(params: Record<string, string | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) search.set(k, v);
+  const q = search.toString();
+  return q ? `?${q}` : '';
 }
 
-export async function getGuide(gatewayId: string, strategy?: string): Promise<Guide> {
-  const query = strategy ? `?strategy=${encodeURIComponent(strategy)}` : '';
+/**
+ * `home` is the address the owner wants, as a full https URL. Pass it and the
+ * whole payload — placement, applicability, every snippet — is rendered against
+ * that destination instead of the plym hostname the blog answers on today.
+ * Omitting it describes the blog as it is currently served, which is only what
+ * you want before the owner has chosen.
+ */
+export async function getRouting(home?: string): Promise<RoutingOptions> {
+  return normalizeRouting(await request<unknown>(`/routing${query({ home })}`));
+}
+
+export async function getGuide(
+  gatewayId: string,
+  opts: { strategy?: string; home?: string } = {},
+): Promise<Guide> {
   return normalizeGuide(
-    await request<unknown>(`/routing/${encodeURIComponent(gatewayId)}${query}`),
+    await request<unknown>(
+      `/routing/${encodeURIComponent(gatewayId)}${query({ strategy: opts.strategy, home: opts.home })}`,
+    ),
     gatewayId,
   );
+}
+
+/**
+ * The closing move of the connect-your-domain flow. Send the guide's
+ * `finish.home` and `finish.register_hostname` verbatim: plym re-renders every
+ * page, canonical tag and sitemap entry for the new address and, for
+ * subdomains, registers the hostname and orders its certificate in the same op.
+ */
+export function setHome(url: string, registerHostname = false): Promise<Accepted> {
+  return request<Accepted>('/home', {
+    method: 'PUT',
+    body: { url, register_hostname: registerHostname },
+  });
 }
 
 /* ── tenant ───────────────────────────────────────────────────────────── */

@@ -74,46 +74,96 @@ export interface Plan {
   impact: Impact;
 }
 
-/** Where a blog is actually served. */
+/**
+ * Where a blog sits — or where it is headed. When `destination` is true this
+ * describes the address the owner asked for via `?home=`, not current state.
+ */
 export interface Placement {
-  host?: string;
+  slug?: string;
+  /** The blog's own plym hostname. This is what a proxy points upstream at. */
+  origin_host?: string;
+  origin_url?: string;
+  /** The platform's own domain, e.g. `plym.space`. */
+  platform_domain?: string;
+  /** Public hostname — the owner's domain once connected. */
+  public_host?: string;
+  public_url?: string;
+  /** Mount path, normalized; an empty string at the domain root. */
   prefix?: string;
-  url?: string;
+  blog_home?: string;
+  admin_url?: string;
+  /** The hostname the subdomain recipes suggest. */
+  subdomain_host?: string;
+  at_root?: boolean;
+  /** True once the public host is the owner's domain rather than plym's. */
+  external_domain?: boolean;
+  /** True when this renders a requested `home` instead of current state. */
+  destination?: boolean;
+}
+
+/** A link out to the gateway's own documentation. */
+export interface DocLink {
+  title: string;
+  url: string;
+}
+
+/** A block of text to paste somewhere, already rendered against real hosts. */
+export interface Snippet {
+  body: string;
+  label?: string;
+  /** Highlighting hint — `nginx`, `shell`, `json`, … */
+  language?: string;
+  /** Where it belongs, when it belongs in a file. */
+  filename?: string | null;
 }
 
 export interface Strategy {
   id: string;
+  /** `path-proxy`, `front-door`, `subdomain` or `native`. */
+  kind?: string;
   label: string;
   summary?: string;
-  /** False when this blog's placement rules the strategy out. */
+  /** `supported`, `advanced` or `not-recommended`. */
+  support?: string;
+  /** False when the chosen address rules this way of connecting out. */
   applicable: boolean;
   /** Why it can't be used, in plain language. Present when `applicable` is false. */
   blocked_reason?: string | null;
-  /** The gateway's own word on how well it works — `native`, `best`, … */
-  support?: string;
-  recommended?: boolean;
 }
 
 export interface Gateway {
   id: string;
   label: string;
-  description?: string;
+  /** What kind of thing this is — the picker groups by it. */
+  category?: string;
+  summary?: string;
+  /** False when none of this gateway's strategies fit the chosen address. */
+  applicable: boolean;
   strategies: Strategy[];
+  docs: DocLink[];
+}
+
+/** One family of ways to connect, described once for the whole catalogue. */
+export interface RoutingKind {
+  id: string;
+  label: string;
+  summary?: string;
 }
 
 export interface RoutingOptions {
   placement?: Placement;
   gateways: Gateway[];
-  /** Which gateway/strategy to put in front of the user first. */
-  recommended?: { gateway?: string; strategy?: string };
+  kinds: RoutingKind[];
+  /** Which gateway/strategy to put in front of the user first, and why. */
+  recommended?: { gateway?: string | null; strategy?: string; why?: string };
 }
 
 export interface GuideStep {
   title: string;
-  body?: string;
-  /** Copy-paste ready, already rendered against this blog's hostname. */
-  snippet?: string | null;
-  /** `customer` for work the site owner does, `plym` for what the platform does. */
+  detail?: string;
+  /** Copy-paste ready, already rendered against this blog's real hostname. */
+  snippet?: Snippet | null;
+  /** `customer` in `steps`, `plym` in `platform`. */
   actor?: string;
 }
 
@@ -123,17 +173,39 @@ export interface GuideCheck {
   title?: string;
 }
 
+/** Closes the journey: apply it with `PUT /home` once the owner's steps are done. */
+export interface Finish {
+  title?: string;
+  detail?: string;
+  /** Send verbatim as `PUT /home`'s `url`. */
+  home: string;
+  /** Pass through to `PUT /home`; true only for subdomain strategies. */
+  register_hostname: boolean;
+}
+
 export interface GuideStrategy extends Strategy {
+  /** The site owner's work, in order. Never contains anything plym does. */
   steps: GuideStep[];
+  /** plym's own side of it — shown as reassurance, never as a task. */
+  platform: GuideStep[];
+  finish?: Finish | null;
+  /** Run these after the `PUT /home` op succeeds. */
   checks: GuideCheck[];
-  caveats: string[];
   requires: string[];
+  caveats: string[];
+  docs: DocLink[];
+  register_hostname: boolean;
 }
 
 export interface Guide {
   gateway: string;
   label: string;
+  category?: string;
+  summary?: string;
+  docs: DocLink[];
   placement?: Placement;
+  /** The invariants any proxy in front of plym must honour. */
+  contract: string[];
   strategies: GuideStrategy[];
 }
 
