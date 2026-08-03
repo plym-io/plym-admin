@@ -638,6 +638,12 @@ class Handler(BaseHTTPRequestHandler):
         # Serve the repo's checked-in snapshot here so that screen is drivable
         # locally without putting the shared sandbox into debug.
         if parsed.path in ("/api/openapi.json", "/openapi.json"):
+            # plym's own /api/openapi.json is behind current_user, so mirror
+            # that: an anonymous fetch must fail here too, or the panel's
+            # spec loader looks like it works locally and 401s in production.
+            if not self.headers.get("Authorization", "").startswith("Bearer "):
+                self._send(401, {"detail": "Not authenticated"})
+                return
             spec = pathlib.Path(__file__).resolve().parent.parent / "openapi.json"
             if spec.exists():
                 body = spec.read_bytes()

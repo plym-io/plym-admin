@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CaretRight, Code, LockSimple, MagnifyingGlass } from '@phosphor-icons/react';
 import { apiBase } from '@/lib/base';
+import { fetchSpec } from '@/lib/openapi-source';
 import {
   groupByTag,
   listOperations,
@@ -19,18 +20,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Snippet } from '@/components/cloud/Snippet';
 import { cn } from '@/lib/classnames';
-
-/**
- * Where the OpenAPI document might be. plym only publishes it when the API is
- * running in debug (`/plym-docs/openapi.json`), so the panel tries the routes
- * in order and shows the first one that answers with a real spec rather than
- * assuming a single path exists.
- */
-const SPEC_URLS = [
-  `${apiBase}/api/openapi.json`,
-  `${apiBase}/openapi.json`,
-  `${apiBase}/plym-docs/openapi.json`,
-];
 
 const METHOD_STYLE: Record<HttpMethod, string> = {
   get: 'bg-success/12 text-success border-success/25',
@@ -251,29 +240,12 @@ export default function ApiReference() {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
-      for (const url of SPEC_URLS) {
-        try {
-          const res = await fetch(url, { headers: { Accept: 'application/json' } });
-          if (!res.ok) continue;
-          const body = (await res.json()) as OpenApiDocument;
-          // The SPA's own index.html is served for unknown paths, and a 200
-          // that isn't a spec is worse than a 404 — check before accepting it.
-          if (!body?.openapi || !body?.paths) continue;
-          if (!cancelled) {
-            setDoc(body);
-            setLoading(false);
-          }
-          return;
-        } catch {
-          /* try the next candidate */
-        }
-      }
-      if (!cancelled) {
-        setFailed(true);
-        setLoading(false);
-      }
-    })();
+    void fetchSpec().then((spec) => {
+      if (cancelled) return;
+      if (spec) setDoc(spec);
+      else setFailed(true);
+      setLoading(false);
+    });
 
     return () => {
       cancelled = true;
@@ -326,7 +298,7 @@ export default function ApiReference() {
           <EmptyState
             icon={Code}
             title="No OpenAPI document published."
-            hint="plym only serves its spec when the API runs in debug mode. Set PLYM_DEBUG=1 and restart to expose it at /plym-docs/openapi.json."
+            hint="This blog is running a plym old enough that it only serves its spec in debug mode. Update plym to expose it at /api/openapi.json."
           />
         </Panel>
       ) : groups.length === 0 ? (
