@@ -16,6 +16,9 @@ import {
 } from '@phosphor-icons/react';
 import { McpIcon } from '@/components/ui/mcp-icon';
 import type { UiIcon } from '@/components/ui/icon';
+import { capabilityOn, useCloudStore } from '@/store/cloud';
+import { useAuthStore } from '@/store/auth';
+import type { Capabilities } from '@/types/cloud';
 
 export interface NavItem {
   to: string;
@@ -24,7 +27,18 @@ export interface NavItem {
   /** Extra words the command palette should match on. */
   keywords?: string;
   adminOnly?: boolean;
+  /** Only exists on plym cloud — an OSS blog has nothing to put on the page. */
+  cloudOnly?: boolean;
+  /** Capability flag from `GET /cloud/capabilities` that switches this off. */
+  capability?: string;
   end?: boolean;
+}
+
+/** What the nav is being rendered for: who is looking, and at which product. */
+export interface NavContext {
+  role?: string;
+  cloud?: boolean;
+  capabilities?: Capabilities | null;
 }
 
 export interface NavGroup {
@@ -40,6 +54,10 @@ export interface NavGroup {
  * Groups appear in this order. Home sits above them all, and the sections that
  * answer "something is wrong" or "give me everything" sit below, unlabelled,
  * because neither belongs under a single heading.
+ *
+ * The four `cloudOnly` destinations are the ones with nothing behind them on an
+ * OSS blog — no gateway to ask for domains, no platform to switch MCP on. They
+ * are hidden rather than stubbed, so the OSS panel is only what it can do.
  */
 export const NAV: NavGroup[] = [
   {
@@ -61,14 +79,34 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/users', label: 'Users', icon: UsersIcon },
       { to: '/settings', label: 'Settings', icon: GearSix, keywords: 'config' },
-      { to: '/domain', label: 'Domain', icon: Globe, keywords: 'dns hostname' },
+      {
+        to: '/domain',
+        label: 'Domain',
+        icon: Globe,
+        keywords: 'dns hostname',
+        cloudOnly: true,
+        capability: 'routing',
+      },
     ],
   },
   {
     label: 'Tools',
     items: [
-      { to: '/mcp', label: 'MCP', icon: McpIcon, keywords: 'model context protocol' },
-      { to: '/api', label: 'API', icon: Code, keywords: 'rest openapi tokens' },
+      {
+        to: '/mcp',
+        label: 'MCP',
+        icon: McpIcon,
+        keywords: 'model context protocol',
+        cloudOnly: true,
+        capability: 'mcp',
+      },
+      {
+        to: '/api',
+        label: 'API',
+        icon: Code,
+        keywords: 'rest openapi tokens',
+        cloudOnly: true,
+      },
     ],
   },
   {
@@ -76,7 +114,14 @@ export const NAV: NavGroup[] = [
     items: [
       // Leads (form submissions) are administrator-only.
       { to: '/leads', label: 'Leads', icon: Target, adminOnly: true, keywords: 'submissions' },
-      { to: '/analytics', label: 'Analytics', icon: ChartLine, keywords: 'traffic stats' },
+      {
+        to: '/analytics',
+        label: 'Analytics',
+        icon: ChartLine,
+        keywords: 'traffic stats',
+        cloudOnly: true,
+        capability: 'analytics',
+      },
     ],
   },
   {
@@ -87,11 +132,24 @@ export const NAV: NavGroup[] = [
   },
 ];
 
-/** The nav, minus anything this role isn't allowed to see. */
-export function visibleNav(role: string | undefined): NavGroup[] {
+/** Who is looking and at which product — the sidebar and the palette share it. */
+export function useNavContext(): NavContext {
+  const role = useAuthStore((s) => s.user?.role);
+  const edition = useCloudStore((s) => s.edition);
+  const capabilities = useCloudStore((s) => s.capabilities);
+  return { role, cloud: edition === 'cloud', capabilities };
+}
+
+/** The nav, minus anything this role — or this edition — can't see. */
+export function visibleNav({ role, cloud, capabilities }: NavContext): NavGroup[] {
   return NAV.map((g) => ({
     ...g,
-    items: g.items.filter((i) => !i.adminOnly || role === 'administrator'),
+    items: g.items.filter(
+      (i) =>
+        (!i.adminOnly || role === 'administrator') &&
+        (!i.cloudOnly || cloud === true) &&
+        (!i.capability || !cloud || capabilityOn(capabilities ?? null, i.capability)),
+    ),
   })).filter((g) => g.items.length > 0);
 }
 
@@ -99,8 +157,8 @@ export function visibleNav(role: string | undefined): NavGroup[] {
  * The same nav flattened for the command palette, where every group needs a
  * heading — the sidebar's two unlabelled runs collapse into one "Pages".
  */
-export function navSections(role: string | undefined): Required<NavGroup>[] {
-  const groups = visibleNav(role);
+export function navSections(ctx: NavContext): Required<NavGroup>[] {
+  const groups = visibleNav(ctx);
   const loose = groups.filter((g) => !g.label).flatMap((g) => g.items);
   return [
     ...(loose.length ? [{ label: 'Pages', items: loose }] : []),

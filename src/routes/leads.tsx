@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react';
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
+import { copyText, downloadFile } from '@/lib/clipboard';
 import type { Submission } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import { Page, PageHeader } from '@/components/ui/page';
@@ -89,32 +90,6 @@ function compareValues(a: unknown, b: unknown, time: boolean): number {
     return na - nb;
   }
   return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: 'base' });
-}
-
-/** Copy text to the clipboard, with a legacy fallback for insecure contexts. */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    /* fall through to the legacy path */
-  }
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(ta);
-    return ok;
-  } catch {
-    return false;
-  }
 }
 
 export default function Leads() {
@@ -294,13 +269,11 @@ export default function Leads() {
   };
 
   const exportCsv = () => {
-    const blob = new Blob([serialize(',')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadFile(
+      `leads-${new Date().toISOString().slice(0, 10)}.csv`,
+      serialize(','),
+      'text/csv;charset=utf-8;',
+    );
     toast.success('Exported leads.csv');
   };
 

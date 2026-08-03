@@ -9,7 +9,7 @@ import {
   MagnifyingGlass,
   ArrowUpRight,
 } from '@phosphor-icons/react';
-import { navSections } from '@/components/layout/nav';
+import { navSections, useNavContext } from '@/components/layout/nav';
 import { useUiStore } from '@/store/ui';
 import { usePostsStore } from '@/store/posts';
 import { useAuthStore } from '@/store/auth';
@@ -26,7 +26,7 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const posts = usePostsStore((s) => s.list);
   const setList = usePostsStore((s) => s.setList);
-  const role = useAuthStore((s) => s.user?.role);
+  const navContext = useNavContext();
   const clear = useAuthStore((s) => s.clear);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search.trim(), 200);
@@ -152,7 +152,7 @@ export function CommandPalette() {
 
                 {/* Driven off the sidebar's own definition — a page added to
                     the nav is jumpable here without a second edit. */}
-                {navSections(role).map((group) => (
+                {navSections(navContext).map((group) => (
                   <Command.Group key={group.label} heading={group.label}>
                     {group.items.map((item) => {
                       const Icon = item.icon;

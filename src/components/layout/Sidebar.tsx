@@ -1,9 +1,8 @@
 import { NavLink } from 'react-router';
 import { motion } from 'motion/react';
 import { useUiStore } from '@/store/ui';
-import { useAuthStore } from '@/store/auth';
 import { cn } from '@/lib/classnames';
-import { visibleNav, type NavItem } from './nav';
+import { useNavContext, visibleNav, type NavItem } from './nav';
 
 function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const Icon = item.icon;
@@ -45,8 +44,7 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
 
 export function Sidebar() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
-  const role = useAuthStore((s) => s.user?.role);
-  const groups = visibleNav(role);
+  const groups = visibleNav(useNavContext());
 
   return (
     <aside
