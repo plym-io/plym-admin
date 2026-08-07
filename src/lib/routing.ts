@@ -131,6 +131,8 @@ export function normalizePlacement(raw: unknown): Placement | undefined {
     admin_url: str(p.admin_url),
     subdomain_host: str(p.subdomain_host),
     at_root: bool(p.at_root),
+    at_apex: bool(p.at_apex),
+    subdomain_requested: bool(p.subdomain_requested),
     external_domain: bool(p.external_domain),
     destination: bool(p.destination),
   };
@@ -226,7 +228,6 @@ function normalizeGuideStrategy(raw: Record<string, unknown>): GuideStrategy {
   return {
     ...normalizeStrategy(raw),
     steps: objects(first(raw, 'steps', 'instructions')).map(normalizeStep),
-    platform: objects(raw.platform).map(normalizeStep),
     finish,
     checks: objects(first(raw, 'checks', 'verification', 'verify')).map(normalizeCheck),
     requires: strings(first(raw, 'requires', 'requirements', 'prerequisites')),

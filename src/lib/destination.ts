@@ -9,9 +9,16 @@
  * The parsing here is deliberately forgiving — people type `blog.acme.com`,
  * not `https://blog.acme.com/`. It only refuses input the gateway could not
  * act on, and every refusal says what to do instead.
+ *
+ * Parsing is all it does. Whether an address is an apex, whether it can hold a
+ * CNAME, which strategies it rules out — those are the gateway's answers, and
+ * they arrive on `placement` (`at_apex`, `subdomain_requested`) as soon as
+ * `getRouting()` returns. Deciding them a second time here is how the two
+ * implementations drift apart, so `shape` below is only ever a hint for the
+ * copy shown *while someone is still typing*. Nothing acted on comes from it.
  */
 
-/** The two shapes a blog can take on someone's own domain. */
+/** The rough shape of what was typed. A hint for pre-flight copy, not a ruling. */
 export type DestinationShape = 'subdomain' | 'path' | 'root';
 
 export interface Destination {
@@ -20,8 +27,6 @@ export interface Destination {
   host: string;
   /** Mount path with no trailing slash; an empty string at the domain root. */
   prefix: string;
-  /** The registrable-looking part of the host, for copy: `acme.com`. */
-  domain: string;
   shape: DestinationShape;
 }
 
@@ -44,13 +49,6 @@ function labelCount(host: string): number {
   const compound = COMPOUND_SUFFIX.test(host);
   const labels = host.split('.').length;
   return compound ? labels - 1 : labels;
-}
-
-/** `blog.acme.com` → `acme.com`; `www.acme.co.uk` → `acme.co.uk`. */
-function registrable(host: string): string {
-  const keep = COMPOUND_SUFFIX.test(host) ? 3 : 2;
-  const labels = host.split('.');
-  return labels.slice(Math.max(0, labels.length - keep)).join('.');
 }
 
 export function parseDestination(input: string, platformDomain?: string): ParsedDestination {
@@ -111,26 +109,36 @@ export function parseDestination(input: string, platformDomain?: string): Parsed
       url: `https://${host}${prefix}`,
       host,
       prefix,
-      domain: registrable(host),
       shape,
     },
   };
 }
 
-/** One line of plain language confirming what was typed. */
+/**
+ * One line of plain language reading back what was typed, shown while they are
+ * still typing it.
+ *
+ * This is a preview, not a verdict. It says what the address *is*; it does not
+ * promise the blog can be served there, because at this point nothing has asked
+ * the gateway. A bare domain in particular cannot hold a CNAME and will be
+ * turned down — so the line stops at describing the address and hands the
+ * question to the next step, where `placement.at_apex` and `recommended.why`
+ * answer it properly.
+ */
 export function describeDestination(d: Destination): string {
   if (d.shape === 'path') {
     return `A section of ${d.host}, at ${d.prefix} — the rest of the site stays exactly as it is.`;
   }
   if (d.shape === 'subdomain') {
-    return `A subdomain of ${d.domain}, separate from your main site.`;
+    return 'A subdomain, separate from your main site.';
   }
-  return `The whole of ${d.host} — the blog becomes that site's homepage.`;
+  return `The whole of ${d.host}, with nothing in front of it — the next step says what that address can do.`;
 }
 
 /**
- * What the owner has to be able to change to make it work. The gateway lists
- * the specifics per strategy; this sets expectations before they pick one.
+ * Roughly what the owner will have to be able to change. Both branches are true
+ * of the address either way round, which is why this is safe to say before
+ * asking; the gateway lists the actual specifics per strategy.
  */
 export function destinationRequirement(d: Destination): string {
   return d.shape === 'path'

@@ -39,8 +39,14 @@ function Checks({ checks }: { checks: GuideCheck[] }) {
             <div key={`${check.command}-${i}`}>
               {check.title && <p className="mb-1 text-[13.5px] text-fg">{check.title}</p>}
               {check.command && <Snippet code={check.command} />}
+              {/* The subdomain check's `expect` is a short paragraph — it reads
+                  the 404 body back to you and says what it proves — so it wraps
+                  and keeps its own line breaks rather than being clipped. */}
               {check.expect && (
-                <p className="mt-1 text-[13px] text-fg-muted">Expect: {check.expect}</p>
+                <p className="mt-1 whitespace-pre-line break-words text-[13px] leading-relaxed text-fg-muted">
+                  <span className="text-fg-subtle">Expect: </span>
+                  {check.expect}
+                </p>
               )}
             </div>
           ))}
