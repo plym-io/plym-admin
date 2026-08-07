@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Info, Lightning, Prohibit } from '@phosphor-icons/react';
+import { ArrowSquareOut, Info, Prohibit } from '@phosphor-icons/react';
 import { cn } from '@/lib/classnames';
 import type { GuideStrategy } from '@/types/cloud';
 import { Snippet } from './Snippet';
@@ -146,25 +146,6 @@ export function ConnectGuide({ strategy }: { strategy: GuideStrategy }) {
           </li>
         ))}
       </ol>
-
-      {/* plym's own work. Named so nobody goes looking for a task that isn't
-          theirs, and deliberately not a numbered step. */}
-      {strategy.platform.length > 0 && (
-        <div className="flex gap-2.5 rounded-lg border border-border bg-bg px-3.5 py-3">
-          <Lightning size={15} weight="fill" className="mt-px shrink-0 text-accent" />
-          <div className="min-w-0">
-            <p className="text-[13px] font-medium text-fg">plym handles the rest</p>
-            <ul className="mt-1 space-y-0.5">
-              {strategy.platform.map((p, i) => (
-                <li key={`${p.title}-${i}`} className="text-[13px] text-fg-muted">
-                  {p.title}
-                  {p.detail ? ` — ${p.detail}` : ''}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
 
       {strategy.caveats.length > 0 && (
         <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">

@@ -168,7 +168,6 @@ describe('normalizeGuide', () => {
               },
             },
           ],
-          platform: [{ title: 'Certificate', detail: 'Ordered for you', actor: 'plym' }],
           finish: {
             title: 'Point plym at it',
             detail: 'We rewrite every URL for the new address.',
@@ -199,9 +198,8 @@ describe('normalizeGuide', () => {
     expect(step.snippet?.filename).toBe('/etc/nginx/conf.d/acme.conf');
   });
 
-  it("separates plym's work from the owner's", () => {
+  it('lists only the owner’s own work — there are no plym steps to separate', () => {
     expect(guide.strategies[0].steps.every((s) => s.actor !== 'plym')).toBe(true);
-    expect(guide.strategies[0].platform[0].title).toBe('Certificate');
   });
 
   it('carries the finish through, since it is what closes the flow', () => {
@@ -259,5 +257,42 @@ describe('normalizePlacement', () => {
       external_domain: false,
       at_root: true,
     });
+  });
+
+  /**
+   * This object is built key by key, so a field it doesn't name is dropped on
+   * the floor — and both of these decide which questions the screen asks.
+   */
+  it('carries at_apex and subdomain_requested through', () => {
+    expect(
+      normalizePlacement({
+        public_host: 'acme.com',
+        destination: true,
+        at_root: true,
+        at_apex: true,
+        subdomain_requested: false,
+      }),
+    ).toMatchObject({ at_apex: true, subdomain_requested: false });
+
+    expect(
+      normalizePlacement({
+        public_host: 'docs.acme.com',
+        destination: true,
+        at_apex: false,
+        subdomain_requested: true,
+        subdomain_host: 'docs.acme.com',
+      }),
+    ).toMatchObject({
+      at_apex: false,
+      subdomain_requested: true,
+      // The address they typed, echoed back — not blog.docs.acme.com.
+      subdomain_host: 'docs.acme.com',
+    });
+  });
+
+  it('leaves the new flags undefined when a release omits them', () => {
+    const p = normalizePlacement({ public_host: 'acme.com' });
+    expect(p?.at_apex).toBeUndefined();
+    expect(p?.subdomain_requested).toBeUndefined();
   });
 });

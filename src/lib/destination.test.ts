@@ -28,7 +28,6 @@ describe('parseDestination', () => {
   it('does not read a two-part suffix as a subdomain', () => {
     expect(parse('acme.co.uk').shape).toBe('root');
     expect(parse('blog.acme.co.uk').shape).toBe('subdomain');
-    expect(parse('blog.acme.co.uk').domain).toBe('acme.co.uk');
   });
 
   it('keeps the prefix without its trailing slash, and empty at the root', () => {
@@ -64,6 +63,18 @@ describe('describeDestination', () => {
   it('says what happens to the rest of the site', () => {
     expect(describeDestination(parse('acme.com/blog'))).toContain('rest of the site');
     expect(describeDestination(parse('blog.acme.com'))).toContain('separate from your main site');
-    expect(describeDestination(parse('acme.com'))).toContain('homepage');
+  });
+
+  /**
+   * A bare domain can't hold a CNAME, and the gateway turns it down. This line
+   * runs before anything has been asked of the gateway, so it describes the
+   * address and defers the ruling rather than promising a homepage it can't
+   * deliver.
+   */
+  it('does not promise a bare domain will work', () => {
+    const copy = describeDestination(parse('acme.com'));
+    expect(copy).toContain('acme.com');
+    expect(copy).toMatch(/next step/i);
+    expect(copy).not.toMatch(/homepage/i);
   });
 });

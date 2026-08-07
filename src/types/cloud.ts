@@ -92,9 +92,26 @@ export interface Placement {
   prefix?: string;
   blog_home?: string;
   admin_url?: string;
-  /** The hostname the subdomain recipes suggest. */
+  /**
+   * The hostname the subdomain recipes use. Usually `blog.<domain>`, but when
+   * the owner typed a bare subdomain it is that hostname echoed back — see
+   * `subdomain_requested`.
+   */
   subdomain_host?: string;
   at_root?: boolean;
+  /**
+   * A registrable domain with no label in front of it — `acme.com`, not
+   * `blog.acme.com`. An apex can't hold a CNAME, so it can't serve the blog:
+   * every strategy is blocked and `recommended.why` names the ways out.
+   */
+  at_apex?: boolean;
+  /**
+   * True when `subdomain_host` is the address the owner typed rather than our
+   * suggestion — a destination with no path, not an apex, not `www.*` and not
+   * on plym's own domain. Every path proxy carries a `blocked_reason` in that
+   * case and the subdomain strategy is the answer.
+   */
+  subdomain_requested?: boolean;
   /** True once the public host is the owner's domain rather than plym's. */
   external_domain?: boolean;
   /** True when this renders a requested `home` instead of current state. */
@@ -163,7 +180,7 @@ export interface GuideStep {
   detail?: string;
   /** Copy-paste ready, already rendered against this blog's real hostname. */
   snippet?: Snippet | null;
-  /** `customer` in `steps`, `plym` in `platform`. */
+  /** Who does it. Always `customer` — the catalogue publishes no plym steps. */
   actor?: string;
 }
 
@@ -184,10 +201,11 @@ export interface Finish {
 }
 
 export interface GuideStrategy extends Strategy {
-  /** The site owner's work, in order. Never contains anything plym does. */
+  /**
+   * The site owner's work, in order. This is the whole of it: the catalogue has
+   * no `actor=plym` steps, so there is no second list of things plym does.
+   */
   steps: GuideStep[];
-  /** plym's own side of it — shown as reassurance, never as a task. */
-  platform: GuideStep[];
   finish?: Finish | null;
   /** Run these after the `PUT /home` op succeeds. */
   checks: GuideCheck[];
