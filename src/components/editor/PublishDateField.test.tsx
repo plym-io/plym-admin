@@ -40,8 +40,8 @@ describe('PublishDateField', () => {
   });
 
   it('echoes the date the post will actually show', async () => {
+    // A live post is already expanded — it has no "＋ Set publish date" step.
     render(<PublishDateField value={null} status="published" onCommit={vi.fn()} />);
-    await userEvent.click(setButton());
     await userEvent.type(input(), '2019-03-04T12:00');
     expect(screen.getByText(/shows as march 04, 2019/i)).toBeInTheDocument();
   });
@@ -70,6 +70,45 @@ describe('PublishDateField', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: /clear date/i }));
     expect(onCommit).toHaveBeenCalledWith(null);
+  });
+
+  it('keeps a dateless published post on screen instead of collapsing it away', async () => {
+    // Clearing is allowed in every status, so a live post can end up with no
+    // date. That is a state the page is visibly the worse for — it must not
+    // look like an ordinary unset draft.
+    const { rerender } = render(
+      <PublishDateField
+        value="2020-01-15T09:30:00Z"
+        status="published"
+        onCommit={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /clear date/i }));
+    rerender(<PublishDateField value={null} status="published" onCommit={vi.fn()} />);
+
+    expect(
+      screen.queryByRole('button', { name: /set publish date/i }),
+    ).not.toBeInTheDocument();
+    expect(input()).toBeInTheDocument();
+  });
+
+  it('warns that a live post is carrying no date', () => {
+    render(<PublishDateField value={null} status="published" onCommit={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent(/live with no date/i);
+  });
+
+  it('holds the warning back while the status change is still in flight', () => {
+    render(
+      <PublishDateField value={null} status="published" statusPending onCommit={vi.fn()} />,
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(input()).toBeInTheDocument();
+  });
+
+  it('still collapses a dateless draft, which is the ordinary case', () => {
+    render(<PublishDateField value={null} status="draft" onCommit={vi.fn()} />);
+    expect(setButton()).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('does not rewrite a microsecond-precision date left untouched', async () => {

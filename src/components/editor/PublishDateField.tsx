@@ -9,6 +9,8 @@ interface Props {
   value: string | null;
   /** Only used to word the hint — the field is editable in every status. */
   status: PostStatus;
+  /** A status change is in flight, so `status` is ahead of what is stored. */
+  statusPending?: boolean;
   /** Commit a new date (or null to clear). Triggers autosave upstream. */
   onCommit: (value: string | null) => void;
 }
@@ -23,15 +25,21 @@ interface Props {
  * author set a day and publish under the one either side of it. The rendered
  * date is echoed below the input so the day is read, not calculated.
  */
-export function PublishDateField({ value, status, onCommit }: Props) {
-  const [expanded, setExpanded] = useState(value !== null);
+export function PublishDateField({ value, status, statusPending, onCommit }: Props) {
+  // A live post's date is worth showing even when it is missing: clearing is
+  // allowed in every status, and a published post carrying no date has lost the
+  // `<time>` element, the `article:published_time` meta and the JSON-LD
+  // `datePublished` from its page. Collapsing that to the same quiet "＋ Set
+  // publish date" a fresh draft shows would hide the damage.
+  const isLive = status === 'published';
+  const [expanded, setExpanded] = useState(value !== null || isLive);
   const [text, setText] = useState(toInputValue(value));
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setText(toInputValue(value));
-    if (value !== null) setExpanded(true);
-  }, [value]);
+    if (value !== null || isLive) setExpanded(true);
+  }, [value, isLive]);
 
   const expand = () => {
     setExpanded(true);
@@ -46,12 +54,12 @@ export function PublishDateField({ value, status, onCommit }: Props) {
     if (text === toInputValue(value)) return;
     const next = fromInputValue(text);
     onCommit(next);
-    if (next === null) setExpanded(false);
+    if (next === null && !isLive) setExpanded(false);
   };
 
   const clear = () => {
     setText('');
-    setExpanded(false);
+    if (!isLive) setExpanded(false);
     if (value !== null) onCommit(null);
   };
 
@@ -68,7 +76,11 @@ export function PublishDateField({ value, status, onCommit }: Props) {
     );
   }
 
-  const pending = fromInputValue(text);
+  const pendingDate = fromInputValue(text);
+  // Publishing flips `status` optimistically, a round trip before the trigger's
+  // date arrives. Warning in that window would flash "no date" at someone who
+  // is in the middle of giving it one.
+  const missingOnLivePost = pendingDate === null && isLive && !statusPending;
 
   return (
     <div className="space-y-2" id="publish-date-field">
@@ -82,15 +94,24 @@ export function PublishDateField({ value, status, onCommit }: Props) {
             <CalendarBlank size={13} weight="bold" className="text-accent" aria-hidden />
           )}
         </label>
-        <button
-          type="button"
-          aria-label={value === null ? 'Cancel' : 'Clear date'}
-          title={value === null ? 'Cancel' : 'Clear the publish date'}
-          onClick={clear}
-          className="rounded p-0.5 text-fg-subtle transition-colors hover:text-fg"
-        >
-          <X size={13} />
-        </button>
+        {/* Nothing to clear and nowhere to collapse to on a dateless live post. */}
+        {!(value === null && isLive) && (
+          <button
+            type="button"
+            aria-label={value === null ? 'Cancel' : 'Clear date'}
+            title={
+              value === null
+                ? 'Cancel'
+                : isLive
+                  ? 'Clear the publish date — the live page will show none'
+                  : 'Clear the publish date'
+            }
+            onClick={clear}
+            className="rounded p-0.5 text-fg-subtle transition-colors hover:text-fg"
+          >
+            <X size={13} />
+          </button>
+        )}
       </div>
       <div className="relative">
         <input
@@ -121,10 +142,15 @@ export function PublishDateField({ value, status, onCommit }: Props) {
           UTC
         </span>
       </div>
-      {pending ? (
+      {pendingDate ? (
         <p className="text-xs text-fg-subtle">
-          Shows as {renderedDate(pending)}
-          {status === 'published' ? '.' : ' once published.'}
+          Shows as {renderedDate(pendingDate)}
+          {isLive ? '.' : ' once published.'}
+        </p>
+      ) : missingOnLivePost ? (
+        <p role="status" className="text-xs text-warning">
+          This post is live with no date. Its page shows none, and search
+          engines see no publication date for it.
         </p>
       ) : (
         <p className="text-xs text-fg-subtle">

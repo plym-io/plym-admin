@@ -661,6 +661,7 @@ export default function PostEditor() {
           <PublishDateField
             value={draft.published_at}
             status={draft.status}
+            statusPending={statusPending}
             onCommit={(published_at) => {
               update({ published_at });
               autosave.flush();
