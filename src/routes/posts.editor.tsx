@@ -29,6 +29,7 @@ import { CategoryField } from '@/components/editor/CategoryField';
 import { FaqSection } from '@/components/editor/FaqSection';
 import { StatusPills } from '@/components/editor/StatusPills';
 import { CanonicalField } from '@/components/editor/CanonicalField';
+import { PublishDateField } from '@/components/editor/PublishDateField';
 import { LinkSimple } from '@phosphor-icons/react';
 import { AnimatedNumber } from '@/components/ui/animated-number';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,7 @@ interface Draft {
   status: PostStatus;
   category_id: number | null;
   weight: number | null;
+  published_at: string | null;
 }
 
 const EMPTY: Draft = {
@@ -62,6 +64,7 @@ const EMPTY: Draft = {
   status: 'draft',
   category_id: null,
   weight: null,
+  published_at: null,
 };
 
 /** True when a 422 names `canonical_url` (so we surface it inline at the field). */
@@ -125,6 +128,11 @@ export default function PostEditor() {
   // The category prefixes the post's path (e.g. "hiring-bias/my-post"), so
   // moving a post between categories relocates its URL — refresh like a slug.
   const savedCategoryRef = useRef<number | null>(null);
+  // Last publish date known to be persisted. This is the one post field the
+  // server moves on its own — the publish trigger stamps it — so we send it
+  // only when the author actually changed it, and never on the strength of an
+  // autosave snapshot taken before that stamp landed.
+  const savedPublishedAtRef = useRef<string | null>(null);
 
   // Keep the title textarea sized to its content, including after load.
   useEffect(() => {
@@ -171,11 +179,13 @@ export default function PostEditor() {
           status: p.status,
           category_id: p.category?.id ?? null,
           weight: p.weight ?? null,
+          published_at: p.published_at ?? null,
         };
         draftRef.current = next;
         savedCanonicalRef.current = p.canonical_url ?? null;
         savedSlugRef.current = p.slug;
         savedCategoryRef.current = p.category?.id ?? null;
+        savedPublishedAtRef.current = p.published_at ?? null;
         setDraft(next);
         setReadingTime(p.reading_time);
         setLivePath(p.path);
@@ -192,6 +202,17 @@ export default function PostEditor() {
   }, [id, navigate]);
 
   // ---- persistence ---------------------------------------------------
+  // Every response is authoritative for `published_at` — the trigger stamps it
+  // when a post first goes live. Folding the value back in keeps the field
+  // showing the real date and stops the next save from arguing with it.
+  const adoptPublishedAt = useCallback((value: string | null) => {
+    savedPublishedAtRef.current = value;
+    if (draftRef.current.published_at === value) return;
+    const merged = { ...draftRef.current, published_at: value };
+    draftRef.current = merged;
+    setDraft(merged);
+  }, []);
+
   const persist = useCallback(
     async (payload: unknown) => {
       const d = payload as Draft;
@@ -205,6 +226,12 @@ export default function PostEditor() {
         (d.canonical_url ?? null) !== savedCanonicalRef.current;
       const slugChanged = effectiveSlug !== savedSlugRef.current;
       const categoryChanged = (d.category_id ?? null) !== savedCategoryRef.current;
+      // Read live rather than from this save's snapshot: publishing between the
+      // keystroke and the debounce firing would otherwise send the null the
+      // draft carried before the trigger stamped a date, erasing it. Omitted
+      // entirely when unchanged, so the server's own value stands.
+      const publishedAt = draftRef.current.published_at;
+      const publishedAtChanged = publishedAt !== savedPublishedAtRef.current;
 
       try {
         if (postIdRef.current === null) {
@@ -221,6 +248,7 @@ export default function PostEditor() {
                 canonical_url: d.canonical_url,
                 category_id: d.category_id,
                 weight: d.weight,
+                ...(publishedAtChanged ? { published_at: publishedAt } : {}),
                 tags: d.tags,
                 faqs: d.faqs.map((f) => f.id),
               },
@@ -231,6 +259,7 @@ export default function PostEditor() {
           savedCanonicalRef.current = created.canonical_url ?? null;
           savedSlugRef.current = created.slug;
           savedCategoryRef.current = created.category?.id ?? null;
+          adoptPublishedAt(created.published_at ?? null);
           setReadingTime(created.reading_time);
           setLivePath(created.path);
           syncList(created);
@@ -252,6 +281,7 @@ export default function PostEditor() {
                 canonical_url: d.canonical_url,
                 category_id: d.category_id,
                 weight: d.weight,
+                ...(publishedAtChanged ? { published_at: publishedAt } : {}),
                 tags: d.tags,
                 faqs: d.faqs.map((f) => f.id),
               },
@@ -260,6 +290,7 @@ export default function PostEditor() {
           savedCanonicalRef.current = updated.canonical_url ?? null;
           savedSlugRef.current = updated.slug;
           savedCategoryRef.current = updated.category?.id ?? null;
+          adoptPublishedAt(updated.published_at ?? null);
           setReadingTime(updated.reading_time);
           setLivePath(updated.path);
           syncList(updated);
@@ -288,7 +319,7 @@ export default function PostEditor() {
         throw e;
       }
     },
-    [navigate],
+    [navigate, adoptPublishedAt],
   );
 
   const syncList = (p: Post) =>
@@ -348,6 +379,10 @@ export default function PostEditor() {
         );
         setLivePath(updated.path);
         syncList(updated);
+        // Publishing is where the trigger stamps a date on a post that had
+        // none — take it now, or the next autosave would offer the null the
+        // draft still holds and undo it.
+        adoptPublishedAt(updated.published_at ?? null);
         await call(
           api.POST('/api/posts/{post_id}/refresh', {
             params: { path: { post_id: postIdRef.current } },
@@ -365,7 +400,7 @@ export default function PostEditor() {
         setStatusPending(false);
       }
     },
-    [draft.status],
+    [draft.status, adoptPublishedAt],
   );
 
   // ---- explicit save (⌘S) — flush autosave then refresh rendered file -
@@ -622,6 +657,15 @@ export default function PostEditor() {
             status={draft.status}
             pending={statusPending}
             onChange={(s) => void setStatus(s)}
+          />
+          <PublishDateField
+            value={draft.published_at}
+            status={draft.status}
+            statusPending={statusPending}
+            onCommit={(published_at) => {
+              update({ published_at });
+              autosave.flush();
+            }}
           />
           <CategoryField
             categoryId={draft.category_id}

@@ -142,6 +142,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/users/{user_id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change User Role */
+        patch: operations["change_user_role_api_users__user_id__role_patch"];
+        trace?: never;
+    };
     "/api/users/{user_id}/deactivate": {
         parameters: {
             query?: never;
@@ -300,6 +317,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tags/{tag_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Tag */
+        delete: operations["delete_tag_api_tags__tag_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/categories": {
         parameters: {
             query?: never;
@@ -383,6 +417,23 @@ export interface paths {
         };
         /** Get Config */
         get: operations["get_config_api_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/openapi.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Openapi Schema */
+        get: operations["openapi_schema_api_openapi_json_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -596,6 +647,14 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** MdUrlsConfig */
+        MdUrlsConfig: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+        };
         /** MediaConfig */
         MediaConfig: {
             /** Location */
@@ -718,6 +777,8 @@ export interface components {
             weight?: number | null;
             /** Category Id */
             category_id?: number | null;
+            /** Published At */
+            published_at?: string | null;
             /** Tags */
             tags?: string[];
             /** Faqs */
@@ -791,15 +852,17 @@ export interface components {
             cover?: string | null;
             /** Canonical Url */
             canonical_url?: string | null;
-            status?: components["schemas"]["PostStatus"] | null;
             /** Weight */
             weight?: number | null;
             /** Category Id */
             category_id?: number | null;
+            /** Published At */
+            published_at?: string | null;
             /** Tags */
             tags?: string[] | null;
             /** Faqs */
             faqs?: number[] | null;
+            status?: components["schemas"]["PostStatus"] | null;
         };
         /** PreviewRequest */
         PreviewRequest: {
@@ -891,12 +954,12 @@ export interface components {
             website: string;
             /**
              * Blog Home
-             * @default plym.local/blog
+             * @default plym.local
              */
             blog_home: string;
             /**
              * Blog Prefix
-             * @default /blog
+             * @default
              */
             blog_prefix: string;
             /**
@@ -918,6 +981,7 @@ export interface components {
             media?: components["schemas"]["MediaConfig"];
             http_cache?: components["schemas"]["HttpCacheConfig"];
             robots?: components["schemas"]["RobotsConfig"];
+            md_urls?: components["schemas"]["MdUrlsConfig"];
             inject?: components["schemas"]["InjectConfig"];
             /** Logo */
             logo?: string | null;
@@ -1048,6 +1112,10 @@ export interface components {
             avatar_url?: string | null;
             /** Links */
             links?: components["schemas"]["ExtLink"][];
+        };
+        /** UserRoleUpdate */
+        UserRoleUpdate: {
+            role: components["schemas"]["Role"];
         };
         /** UserUpdate */
         UserUpdate: {
@@ -1382,6 +1450,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: boolean;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_user_role_api_users__user_id__role_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserRoleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
                 };
             };
             /** @description Validation Error */
@@ -1828,6 +1931,35 @@ export interface operations {
             };
         };
     };
+    delete_tag_api_tags__tag_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tag_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_categories_api_categories_get: {
         parameters: {
             query?: never;
@@ -2144,6 +2276,28 @@ export interface operations {
             };
         };
     };
+    openapi_schema_api_openapi_json_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     collect_api_collect_post: {
         parameters: {
             query?: never;
@@ -2153,9 +2307,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2166,15 +2318,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubmissionReceipt"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
