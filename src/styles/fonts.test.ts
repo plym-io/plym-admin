@@ -46,6 +46,23 @@ describe('self-hosted fonts', () => {
     expect(read('src/styles/globals.css')).toContain("@import './fonts.css'");
   });
 
+  it('ships the licence the vendored faces travel under', () => {
+    // OFL-1.1 permits redistribution only alongside its own text and the
+    // copyright notice, so the bundle carrying the woff2 has to carry these.
+    // public/ is what reaches dist, which is what a release tarball is —
+    // src/assets/ never gets there unless something imports it.
+    const licence = read('public/fonts/OFL.txt');
+    // Driven off fonts.css rather than a hardcoded list: adding a fifth family
+    // and forgetting to regenerate the notice is the way this goes wrong, and
+    // a fixed list would sail straight past it.
+    const families = new Set(
+      [...read('src/styles/fonts.css').matchAll(/font-family: '([^']+)'/g)].map((m) => m[1]),
+    );
+    expect(families.size).toBeGreaterThan(0);
+    for (const family of families) expect(licence).toContain(family);
+    expect(licence.match(/SIL OPEN FONT LICENSE Version 1\.1/g)).toHaveLength(families.size);
+  });
+
   it('the build never inlines a woff2, which would make it a data: URI', () => {
     // Vite inlines any asset under assetsInlineLimit; the config has to opt
     // woff2 out by hand, and the small subsets are well under the default.

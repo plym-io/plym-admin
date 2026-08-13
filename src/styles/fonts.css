@@ -4,7 +4,8 @@
  * CDN outright. Re-run `npm run fonts` to change or update a family; the
  * family list lives in that script.
  *
- * Space Grotesk, Archivo, Merriweather and Google Sans Code are OFL-1.1.
+ * Space Grotesk, Archivo, Merriweather and Google Sans Code are OFL-1.1;
+ * the licence they travel under is at public/fonts/OFL.txt.
  */
 /* vietnamese */
 @font-face {
