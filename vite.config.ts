@@ -56,6 +56,10 @@ export default defineConfig(({ command }) => ({
     ),
   },
   build: {
+    // A woff2 under the inline limit would be emitted as a data: URI, and the
+    // panel is served under `font-src 'self'` — which does not cover data:.
+    // Inlining the small subsets would block them exactly like the CDN did.
+    assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined),
     // CodeMirror language modes are split per-language and load on demand,
     // so the editor route stays lazy. Keep the common vendors in stable chunks.
     rollupOptions: {

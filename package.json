@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "codegen": "node scripts/sync-schema.mjs",
+    "fonts": "node scripts/vendor-fonts.mjs",
     "lint": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest"

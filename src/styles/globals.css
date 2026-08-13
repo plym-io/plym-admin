@@ -1,5 +1,11 @@
 @import 'tailwindcss';
 
+/* The four faces named in --font-* below, self-hosted. They cannot be linked
+   from Google's CDN: the panel is served under a CSP of style-src 'self' /
+   font-src 'self', which blocks that stylesheet and its woff2 outright.
+   Generated — see scripts/vendor-fonts.mjs. */
+@import './fonts.css';
+
 /* ------------------------------------------------------------------ *
  * plym design tokens.
  *
