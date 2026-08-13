@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Terminal } from '@phosphor-icons/react';
+import { Lock, Terminal } from '@phosphor-icons/react';
 import { applySettings, getSettings, getStatus } from '@/api/cloud';
 import { isApiError } from '@/api/errors';
 import { toInput } from '@/lib/settings';
 import { useIsCloud } from '@/store/cloud';
+import { useAuthStore } from '@/store/auth';
 import type { SettingSchema } from '@/types/cloud';
 import { Page, PageHeader, Panel, PanelHeader, Section } from '@/components/ui/page';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -255,8 +256,41 @@ function CloudMcp() {
   );
 }
 
+/**
+ * Anyone below administrator. Whether the server is running is not knowable
+ * from here — the gateway answers 403 to the settings it would take to find
+ * out — so the page says nothing about it rather than implying "off". The
+ * connection details need no privilege and are the half of the page they can
+ * actually use, so they stay.
+ */
+function ReadOnlyMcp() {
+  return (
+    <>
+      <Panel>
+        <div className="flex items-start gap-3.5">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-bg-subtle text-fg-muted">
+            <Lock size={17} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[14px] font-semibold tracking-tight text-fg">
+              An administrator looks after this
+            </h2>
+            <p className="mt-0.5 text-[13px] leading-relaxed text-fg-muted">
+              Changing MCP settings needs the administrator role. Ask an
+              administrator of this blog if you need them changed.
+            </p>
+          </div>
+        </div>
+      </Panel>
+
+      <ConnectAClient url={mcpEndpoint(undefined)} />
+    </>
+  );
+}
+
 export default function Mcp() {
   const isCloud = useIsCloud();
+  const isAdmin = useAuthStore((s) => s.user?.role) === 'administrator';
 
   return (
     <Page width="text">
@@ -264,7 +298,9 @@ export default function Mcp() {
         title="MCP"
         description="Let assistants read and write this blog over the Model Context Protocol."
       />
-      <div className="mt-6 space-y-6">{isCloud ? <CloudMcp /> : <OssMcp />}</div>
+      <div className="mt-6 space-y-6">
+        {!isAdmin ? <ReadOnlyMcp /> : isCloud ? <CloudMcp /> : <OssMcp />}
+      </div>
     </Page>
   );
 }

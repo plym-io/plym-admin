@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/layout/RequireAuth';
 import { RouteFallback } from '@/components/layout/RouteFallback';
 import { useIsCloud } from '@/store/cloud';
+import { useAuthStore } from '@/store/auth';
 
 const Login = lazy(() => import('@/routes/login'));
 const Home = lazy(() => import('@/routes/home'));
@@ -36,6 +37,18 @@ function CloudOnly({ children }: { children: React.ReactNode }) {
   return useIsCloud() ? <>{children}</> : <Navigate to="/" replace />;
 }
 
+/**
+ * A section only administrators have. The API answers 403 to everyone else, so
+ * these screens don't exist for them: the sidebar and the palette leave them
+ * out (`adminOnly` in nav.ts) and a deep link goes home. RequireAuth has the
+ * current user in hand before any of this renders, so the role is never a
+ * guess.
+ */
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  const role = useAuthStore((s) => s.user?.role);
+  return role === 'administrator' ? <>{children}</> : <Navigate to="/" replace />;
+}
+
 const router = createBrowserRouter(
   [
     { path: '/login', element: wrap(<Login />) },
@@ -52,12 +65,26 @@ const router = createBrowserRouter(
         // creating a post swaps the param in place without remounting the editor.
         { path: 'posts/:id', element: wrap(<PostEditor />) },
         { path: 'media', element: wrap(<Media />) },
-        { path: 'leads', element: wrap(<Leads />) },
+        {
+          path: 'leads',
+          element: wrap(
+            <AdminOnly>
+              <Leads />
+            </AdminOnly>,
+          ),
+        },
         { path: 'users', element: wrap(<Users />) },
         { path: 'faqs', element: wrap(<Faqs />) },
         { path: 'tags', element: wrap(<Tags />) },
         { path: 'categories', element: wrap(<Categories />) },
-        { path: 'settings', element: wrap(<Settings />) },
+        {
+          path: 'settings',
+          element: wrap(
+            <AdminOnly>
+              <Settings />
+            </AdminOnly>,
+          ),
+        },
         { path: 'support', element: wrap(<Support />) },
         { path: 'api', element: wrap(<ApiReference />) },
         // Both editions run an MCP server; only the way you switch it on
@@ -67,7 +94,9 @@ const router = createBrowserRouter(
           path: 'domain',
           element: wrap(
             <CloudOnly>
-              <Domain />
+              <AdminOnly>
+                <Domain />
+              </AdminOnly>
             </CloudOnly>,
           ),
         },
