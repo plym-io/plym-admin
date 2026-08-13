@@ -76,14 +76,23 @@ export const NAV: NavGroup[] = [
   {
     label: 'Administration',
     // Everyone can see Users; the management actions inside are admin-gated.
+    // Settings and Domain are not: the gateway answers 403 to anyone else, so
+    // they are hidden rather than shown as a screen that can only fail.
     items: [
       { to: '/users', label: 'Users', icon: UsersIcon },
-      { to: '/settings', label: 'Settings', icon: GearSix, keywords: 'config' },
+      {
+        to: '/settings',
+        label: 'Settings',
+        icon: GearSix,
+        keywords: 'config',
+        adminOnly: true,
+      },
       {
         to: '/domain',
         label: 'Domain',
         icon: Globe,
         keywords: 'dns hostname',
+        adminOnly: true,
         cloudOnly: true,
         capability: 'routing',
       },

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate } from 'react-router';
 import { toast } from 'sonner';
 import {
   Funnel,
@@ -16,7 +15,6 @@ import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import { copyText, downloadFile } from '@/lib/clipboard';
 import type { Submission } from '@/types';
-import { useAuthStore } from '@/store/auth';
 import { Page, PageHeader } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -93,9 +91,6 @@ function compareValues(a: unknown, b: unknown, time: boolean): number {
 }
 
 export default function Leads() {
-  const role = useAuthStore((s) => s.user?.role);
-  const isAdmin = role === 'administrator';
-
   const [rows, setRows] = useState<Submission[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [page, setPage] = useState(1);
@@ -122,7 +117,6 @@ export default function Leads() {
     );
 
   useEffect(() => {
-    if (!isAdmin) return;
     let cancelled = false;
     fetchPage(1)
       .then((res) => {
@@ -140,7 +134,7 @@ export default function Leads() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, []);
 
   // Columns: payload keys first, then additional_ctx keys, then the fixed meta
   // fields. user_agent is intentionally omitted for now. Derived from whatever
@@ -293,9 +287,6 @@ export default function Leads() {
       }
     });
   };
-
-  // Admins only — bounce anyone who reaches the URL directly.
-  if (!isAdmin) return <Navigate to="/" replace />;
 
   const noData = !loading && rows.length === 0;
   const noMatches = !loading && rows.length > 0 && view.length === 0;

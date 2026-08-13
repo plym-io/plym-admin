@@ -25,7 +25,17 @@ describe('navigation grouping', () => {
   });
 
   it('hides Leads from non-administrators without emptying Marketing', () => {
-    expect(labels({ role: 'author', cloud: true }).Marketing).toEqual(['Analytics']);
+    expect(labels({ role: 'editor', cloud: true }).Marketing).toEqual(['Analytics']);
+  });
+
+  it('leaves an editor nothing under Administration but Users', () => {
+    // Settings, Domain and Leads are 403 for anyone below administrator, so
+    // the sidebar — and with it the palette — must not offer them at all.
+    const editor = labels({ role: 'editor', cloud: true });
+    expect(editor.Administration).toEqual(['Users']);
+    expect(navSections({ role: 'editor', cloud: true }).flatMap((s) =>
+      s.items.map((i) => i.label),
+    )).not.toContain('Settings');
   });
 
   it('gives every item a unique route', () => {
