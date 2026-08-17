@@ -301,7 +301,12 @@ export default function Domain() {
 
   const guideBody = (
     <>
-      <StrategyChoice strategies={applicable} selected={strategyId} onSelect={setStrategyId} />
+      <StrategyChoice
+        strategies={applicable}
+        kinds={routing?.kinds}
+        selected={strategyId}
+        onSelect={setStrategyId}
+      />
       {strategy ? (
         <ConnectGuide strategy={strategy} />
       ) : (

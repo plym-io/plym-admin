@@ -24,6 +24,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   builder: 'Website builders',
   cms: 'Website builders',
   framework: 'Frameworks',
+  // Not a gateway at all: the blog stays on its plym hostname. Spelled out
+  // here because the fallback would title-case the brand.
+  plym: 'Without a gateway',
   other: 'Anything else',
 };
 
@@ -113,6 +116,8 @@ export function GatewayPicker({
     [gateways, term],
   );
 
+  /** Whether there is a card for the recommendation to sit on — before any filtering. */
+  const named = gateways.some((g) => g.id === recommended && g.applicable);
   const pick = matches.find((g) => g.id === recommended && g.applicable);
   const rest = matches.filter((g) => g !== pick);
   const usable = rest.filter((g) => g.applicable);
@@ -131,6 +136,12 @@ export function GatewayPicker({
 
   return (
     <div className="space-y-5">
+      {/* The payload can say why without naming a gateway — for a path on a
+          domain it has never seen, it knows what to tell you and not which
+          product to point at. Hanging that sentence off the suggestion card
+          lost it in exactly the case where it is the only guidance there is. */}
+      {why && !named && <p className="text-[13px] text-fg-muted">{why}</p>}
+
       {gateways.length >= SEARCHABLE_FROM && (
         <div className="relative">
           <MagnifyingGlass
