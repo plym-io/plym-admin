@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Toggle } from '@/components/ui/toggle';
 import { McpIcon } from '@/components/ui/mcp-icon';
 import { Snippet } from '@/components/cloud/Snippet';
-import { OpProgress } from '@/components/cloud/OpProgress';
+import { OpProgress, type OpOutcome } from '@/components/cloud/OpProgress';
 
 /** The settings key that starts and stops the MCP container on cloud. */
 const MCP_KEY = 'mcp.enabled';
@@ -193,10 +193,13 @@ function CloudMcp() {
     }
   };
 
-  const settled = (state: 'succeeded' | 'failed') => {
+  const settled = (outcome: OpOutcome) => {
     setBusy(false);
-    if (state === 'succeeded') toast.success('MCP updated.');
-    else toast.error('That did not go through.');
+    if (outcome === 'succeeded') toast.success('MCP updated.');
+    else if (outcome === 'failed') toast.error('That did not go through.');
+    // Toggling MCP restarts the blog. Losing it mid-restart is not a result,
+    // and the reload below is what turns it into one.
+    else toast('Lost sight of that while the blog restarted.');
     void load();
   };
 
