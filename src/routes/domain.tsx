@@ -474,6 +474,7 @@ export default function Domain() {
                         <FinishDomain
                           finish={strategy.finish}
                           checks={strategy.checks}
+                          prefix={target?.prefix}
                           onApplied={loadCurrent}
                         />
                       </div>
@@ -535,6 +536,7 @@ export default function Domain() {
                   <FinishDomain
                     finish={strategy.finish}
                     checks={strategy.checks}
+                    prefix={target?.prefix}
                     onApplied={loadCurrent}
                   />
                 ) : (

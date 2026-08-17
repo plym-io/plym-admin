@@ -28,34 +28,58 @@ describe('adminBase and apiBase', () => {
   });
 });
 
-describe('adminUrlForPrefix', () => {
+describe('panelMove', () => {
   it('carries the current route to the new prefix', async () => {
-    const { adminUrlForPrefix } = await mountedAt('/blog/plym-admin/settings');
-    expect(adminUrlForPrefix('/news')).toBe(
+    const { panelMove } = await mountedAt('/blog/plym-admin/settings');
+    expect(panelMove('/news')?.adminUrl).toBe(
       'http://localhost:3000/news/plym-admin/settings',
     );
   });
 
   it('accepts a prefix written without slashes, or with too many', async () => {
-    const { adminUrlForPrefix } = await mountedAt('/blog/plym-admin/settings');
-    expect(adminUrlForPrefix('news')).toBe(
+    const { panelMove } = await mountedAt('/blog/plym-admin/settings');
+    expect(panelMove('news')?.adminUrl).toBe(
       'http://localhost:3000/news/plym-admin/settings',
     );
-    expect(adminUrlForPrefix('/news/')).toBe(
+    expect(panelMove('/news/')?.adminUrl).toBe(
       'http://localhost:3000/news/plym-admin/settings',
     );
   });
 
   it('moves the panel to the domain root when the blog goes there', async () => {
-    const { adminUrlForPrefix } = await mountedAt('/blog/plym-admin/settings');
-    expect(adminUrlForPrefix('')).toBe('http://localhost:3000/plym-admin/settings');
-    expect(adminUrlForPrefix('/')).toBe('http://localhost:3000/plym-admin/settings');
+    const { panelMove } = await mountedAt('/blog/plym-admin/settings');
+    expect(panelMove('')?.adminUrl).toBe('http://localhost:3000/plym-admin/settings');
+    expect(panelMove('/')?.adminUrl).toBe('http://localhost:3000/plym-admin/settings');
   });
 
   it('keeps the query and hash, and lands on the root of the panel from its root', async () => {
-    const { adminUrlForPrefix } = await mountedAt('/blog/plym-admin/?tab=x#top');
-    expect(adminUrlForPrefix('/news')).toBe(
+    const { panelMove } = await mountedAt('/blog/plym-admin/?tab=x#top');
+    expect(panelMove('/news')?.adminUrl).toBe(
       'http://localhost:3000/news/plym-admin/?tab=x#top',
     );
+  });
+
+  /* The gateway moves with the panel, and stays on this origin — which is the
+     whole reason an operation that moves it can still be followed. */
+  it('names the gateway’s new base under the same prefix', async () => {
+    const { panelMove } = await mountedAt('/blog/plym-admin/domain');
+    expect(panelMove('/news')?.cloudBase).toBe('/news/cloud');
+    expect(panelMove('')?.cloudBase).toBe('/cloud');
+  });
+
+  /* Nothing is taken away, so there is nothing to warn about and nothing to
+     follow — however the prefix that resolves here happens to be written. */
+  it('is not a move when the prefix resolves to where the panel already is', async () => {
+    const { panelMove } = await mountedAt('/blog/plym-admin/settings');
+    expect(panelMove('/blog')).toBeNull();
+    expect(panelMove('blog')).toBeNull();
+    expect(panelMove('/blog/')).toBeNull();
+  });
+
+  it('is not a move at the root either', async () => {
+    const { panelMove } = await mountedAt('/plym-admin/settings');
+    expect(panelMove('')).toBeNull();
+    expect(panelMove('/')).toBeNull();
+    expect(panelMove('/blog')).not.toBeNull();
   });
 });

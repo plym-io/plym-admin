@@ -60,15 +60,20 @@ async function toError(res: Response): Promise<CloudError> {
 
 async function request<T>(
   path: string,
-  init: Omit<RequestInit, 'body'> & { body?: unknown; auth?: boolean } = {},
+  init: Omit<RequestInit, 'body'> & {
+    body?: unknown;
+    auth?: boolean;
+    /** Another mount of this same gateway — see `getOpEvents`. Defaults to ours. */
+    base?: string;
+  } = {},
 ): Promise<T> {
-  const { auth = true, body, ...rest } = init;
+  const { auth = true, body, base = cloudBase, ...rest } = init;
 
   const send = async (token: string | null) => {
     const headers = new Headers(rest.headers);
     if (token) headers.set('Authorization', `Bearer ${token}`);
     if (body !== undefined) headers.set('Content-Type', 'application/json');
-    return fetch(`${cloudBase}${path}`, {
+    return fetch(`${base}${path}`, {
       ...rest,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -195,8 +200,16 @@ export function installTemplate(
 
 /* ── operations ───────────────────────────────────────────────────────── */
 
-export function getOpEvents(opId: string, after = 0): Promise<EventPage> {
-  return request<EventPage>(`/ops/${encodeURIComponent(opId)}/events?after=${after}`);
+/**
+ * `base` re-points this one call at another mount of the same gateway. An
+ * operation that changes the blog prefix moves the gateway out from under the
+ * page that started it, and the only way to learn how that operation ended is
+ * to ask for it where the gateway now answers — see `OpProgress`.
+ */
+export function getOpEvents(opId: string, after = 0, base?: string): Promise<EventPage> {
+  return request<EventPage>(`/ops/${encodeURIComponent(opId)}/events?after=${after}`, {
+    base,
+  });
 }
 
 /* ── routing ──────────────────────────────────────────────────────────── */

@@ -13,7 +13,7 @@ import type { TemplateCatalog, TemplateSource } from '@/types/cloud';
 import { Panel, PanelHeader } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { OpProgress } from '@/components/cloud/OpProgress';
+import { OpProgress, type OpOutcome } from '@/components/cloud/OpProgress';
 import { cn } from '@/lib/classnames';
 
 /** One row of the catalogue: a name, and what can be done with it here. */
@@ -101,16 +101,21 @@ export function TemplatePicker({ value, onSelect, onInstalled }: Props) {
     }
   };
 
-  const settled = (state: 'succeeded' | 'failed') => {
+  const settled = (outcome: OpOutcome) => {
     const name = installing;
     setInstalling(null);
-    if (state === 'succeeded') {
+    if (outcome === 'succeeded') {
       toast.success(name ? `${name} installed.` : 'Template installed.');
-      void load();
-      onInstalled?.();
-    } else {
+    } else if (outcome === 'failed') {
       toast.error('The install did not finish.');
+      return;
+    } else {
+      // Installing restarts the blog, so losing sight of it says nothing about
+      // how it ended. The catalogue knows; ask it rather than guess.
+      toast('Lost sight of the install while the blog restarted.');
     }
+    void load();
+    onInstalled?.();
   };
 
   if (error && !catalog) {

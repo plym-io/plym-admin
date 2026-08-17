@@ -4,11 +4,13 @@ import { ArrowSquareOut, CaretDown, CheckCircle } from '@phosphor-icons/react';
 import { setHome } from '@/api/cloud';
 import { isApiError } from '@/api/errors';
 import { cn } from '@/lib/classnames';
+import { panelMove } from '@/lib/base';
 import type { CloudError } from '@/api/cloud';
 import type { Finish, GuideCheck } from '@/types/cloud';
 import { Button } from '@/components/ui/button';
 import { Snippet } from './Snippet';
-import { OpProgress } from './OpProgress';
+import { OpProgress, type OpOutcome } from './OpProgress';
+import { PanelMoved, PanelMoveNotice } from './PanelMoved';
 
 /**
  * The checks the gateway ships with a strategy. They are curl commands, which
@@ -68,10 +70,19 @@ function Checks({ checks }: { checks: GuideCheck[] }) {
 export function FinishDomain({
   finish,
   checks,
+  prefix,
   onApplied,
 }: {
   finish: Finish;
   checks: GuideCheck[];
+  /**
+   * The mount path the gateway resolved for this destination — its own answer,
+   * never worked out from `finish.home` here. An address with a folder in it
+   * (`acme.com/blog`) republishes the blog under that folder, and this panel is
+   * served from under the blog, so it is the difference between a move that
+   * takes this page's address away and one that doesn't.
+   */
+  prefix?: string;
   /** Fired once the operation settles, so the screen can reload the truth. */
   onApplied: () => void;
 }) {
@@ -79,6 +90,9 @@ export function FinishDomain({
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<CloudError | null>(null);
   const [state, setState] = useState<'succeeded' | 'failed' | null>(null);
+  const [moved, setMoved] = useState<'succeeded' | 'lost' | null>(null);
+
+  const move = prefix === undefined ? null : panelMove(prefix);
 
   const apply = async () => {
     setStarting(true);
@@ -93,11 +107,23 @@ export function FinishDomain({
     }
   };
 
-  const settle = (next: 'succeeded' | 'failed') => {
-    setState(next);
-    if (next === 'succeeded') toast.success('Your blog has moved.');
+  const settle = (outcome: OpOutcome) => {
+    if (outcome === 'succeeded') toast.success('Your blog has moved.');
+    if (move && outcome !== 'failed') {
+      // Reloading this screen would ask the gateway at the mount this very
+      // operation has just taken away — a 404 that would paint a routing error
+      // over a move that worked. Hand the owner to the new address instead.
+      setMoved(outcome);
+      if (outcome === 'succeeded') setState('succeeded');
+      return;
+    }
+    setState(outcome === 'succeeded' ? 'succeeded' : 'failed');
     onApplied();
   };
+
+  if (moved === 'lost' && move) {
+    return <PanelMoved move={move} outcome="lost" />;
+  }
 
   if (state === 'succeeded') {
     return (
@@ -123,6 +149,7 @@ export function FinishDomain({
             Visit <ArrowSquareOut size={14} />
           </Button>
         </div>
+        {moved === 'succeeded' && move && <PanelMoved move={move} outcome="succeeded" className="mt-3" />}
         <Checks checks={checks} />
       </div>
     );
@@ -145,6 +172,8 @@ export function FinishDomain({
         </p>
       </div>
 
+      {move && <PanelMoveNotice move={move} className="mt-3" />}
+
       {error && (
         <div className="mt-3 rounded-lg border border-danger/40 bg-danger/5 p-3">
           <p className="text-sm text-danger">{error.message}</p>
@@ -153,7 +182,12 @@ export function FinishDomain({
       )}
 
       {opId ? (
-        <OpProgress opId={opId} onSettled={settle} className="mt-4" />
+        <OpProgress
+          opId={opId}
+          onSettled={settle}
+          followTo={move?.cloudBase}
+          className="mt-4"
+        />
       ) : (
         <Button variant="accent" className="mt-4" onClick={() => void apply()} disabled={starting}>
           {starting ? 'Starting…' : 'Move my blog'}
