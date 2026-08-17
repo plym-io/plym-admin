@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   ArrowClockwise,
+  ArrowsClockwise,
   Check,
   DownloadSimple,
   Lock,
@@ -9,46 +10,79 @@ import {
 } from '@phosphor-icons/react';
 import { getTemplates, installTemplate } from '@/api/cloud';
 import { isApiError, type ApiError } from '@/api/errors';
-import type { TemplateCatalog, TemplateSource } from '@/types/cloud';
+import type { SettingSchema, TemplateCatalog, TemplateSource } from '@/types/cloud';
 import { Panel, PanelHeader } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ImpactBadge } from '@/components/cloud/ImpactBadge';
 import { OpProgress, type OpOutcome } from '@/components/cloud/OpProgress';
 import { cn } from '@/lib/classnames';
 
-/** One row of the catalogue: a name, and what can be done with it here. */
-interface Entry {
+/** One template, and where another copy of it could still come from. */
+export interface TemplateEntry {
   name: string;
-  source: TemplateSource;
-  installed: boolean;
-  active: boolean;
+  /** The registry offering it; null once neither one does. */
+  source: TemplateSource | null;
 }
 
 /**
- * Fold the gateway's four lists into the one list a person reads. A name can
- * appear in both `public` and `private`; the tenant's own registry wins,
- * because that is the copy they control.
+ * The catalogue as this screen reads it: what the blog has, and what it could
+ * have. A name is never in both lists — installing moves it from one to the
+ * other — because only an installed template can be selected, and a row that
+ * offered both readings at once is what made this screen hard to read.
  */
-export function catalogEntries(catalog: TemplateCatalog): Entry[] {
-  const seen = new Map<string, Entry>();
-  const add = (name: string, source: TemplateSource) => {
-    if (seen.has(name)) return;
-    seen.set(name, {
-      name,
-      source,
-      installed: catalog.available.includes(name),
-      active: catalog.active === name,
-    });
+export interface TemplateShelf {
+  installed: TemplateEntry[];
+  registry: TemplateEntry[];
+}
+
+const byName = (a: TemplateEntry, b: TemplateEntry) => a.name.localeCompare(b.name);
+
+/**
+ * Split the gateway's four lists in two. `installedNames` is the settings
+ * document's own list of valid values, and it stands in for the whole
+ * catalogue on a deployment too old to publish `/templates` — selecting still
+ * works there, there is just nothing new to install.
+ */
+export function shelve(
+  catalog: TemplateCatalog | null,
+  installedNames: string[],
+): TemplateShelf {
+  // The tenant's own registry wins: that is the copy they control.
+  const sourceOf = (name: string): TemplateSource | null =>
+    catalog?.private.includes(name)
+      ? 'private'
+      : catalog?.public.includes(name)
+        ? 'public'
+        : null;
+
+  const have = new Set(catalog?.available ?? installedNames);
+  const registry = new Map<string, TemplateEntry>();
+  for (const name of [...(catalog?.private ?? []), ...(catalog?.public ?? [])]) {
+    if (have.has(name) || registry.has(name)) continue;
+    registry.set(name, { name, source: sourceOf(name) });
+  }
+
+  return {
+    installed: [...have].map((name) => ({ name, source: sourceOf(name) })).sort(byName),
+    registry: [...registry.values()].sort(byName),
   };
-  catalog.private.forEach((n) => add(n, 'private'));
-  catalog.public.forEach((n) => add(n, 'public'));
-  // Installed but no longer offered by either registry — still selectable.
-  catalog.available.forEach((n) => add(n, 'public'));
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function sourceLabel(source: TemplateSource | null): string {
+  if (source === 'private') return 'Your registry';
+  if (source === 'public') return 'Public repo';
+  return 'Installed here';
 }
 
 interface Props {
-  /** The draft value of the `template` setting, so selection stays in the form. */
+  /** The `template` key as the gateway describes it — what a change costs. */
+  field?: SettingSchema;
+  /** Valid values from the settings document. */
+  installed: string[];
+  /** The template rendering the blog right now. */
+  live: string;
+  /** The draft value, so a selection stays in the form until Deploy. */
   value: string;
   onSelect: (name: string) => void;
   /** Re-read the settings document once an install lands. */
@@ -56,27 +90,37 @@ interface Props {
 }
 
 /**
- * Install a template, then select it.
+ * The whole of the Template setting: install one from a registry, then select
+ * it.
  *
  * Selecting is an ordinary settings edit — it joins the draft and goes out with
  * the next deploy. Installing is not: it fetches the template, restarts the
  * blog and re-renders every post, so it runs as its own operation with its own
  * log, right here, before there is anything to select.
  */
-export function TemplatePicker({ value, onSelect, onInstalled }: Props) {
+export function TemplatePicker({
+  field,
+  installed,
+  live,
+  value,
+  onSelect,
+  onInstalled,
+}: Props) {
   const [catalog, setCatalog] = useState<TemplateCatalog | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState<string | null>(null);
   const [opId, setOpId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       setCatalog(await getTemplates());
-      setError(null);
-    } catch (e) {
+    } catch {
       // An older gateway has no /templates at all. That's not a failure worth
-      // shouting about — the select below still works off the settings doc.
-      setError(isApiError(e) ? e.message : 'Could not load templates');
+      // shouting about — the settings document still says what can be picked,
+      // there is simply nothing new to install.
+      setCatalog(null);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -84,14 +128,14 @@ export function TemplatePicker({ value, onSelect, onInstalled }: Props) {
     void load();
   }, [load]);
 
-  const entries = useMemo(() => (catalog ? catalogEntries(catalog) : []), [catalog]);
+  const shelf = useMemo(() => shelve(catalog, installed), [catalog, installed]);
+  const dirty = value !== live;
 
-  const install = async (entry: Entry, update = false) => {
-    setInstalling(entry.name);
+  const install = async (name: string, source: TemplateSource, update = false) => {
+    setInstalling(name);
     setOpId(null);
     try {
-      const accepted = await installTemplate(entry.name, entry.source, { update });
-      setOpId(accepted.op_id);
+      setOpId((await installTemplate(name, source, { update })).op_id);
     } catch (e) {
       const err = e as ApiError & { remedy?: string | null };
       toast.error(isApiError(e) ? err.message : 'Could not start the install', {
@@ -118,111 +162,145 @@ export function TemplatePicker({ value, onSelect, onInstalled }: Props) {
     onInstalled?.();
   };
 
-  if (error && !catalog) {
-    return null;
-  }
-
   return (
     <Panel flush>
       <PanelHeader
-        title="Templates"
-        description="Install one from a registry, then select it."
+        title={field?.label ?? 'Template'}
+        description="Only an installed template can be selected. Install one from a registry, then select it."
         actions={
-          <button
-            type="button"
-            onClick={() => void load()}
-            aria-label="Refresh templates"
-            title="Refresh"
-            className="rounded-md p-1.5 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg"
-          >
-            <ArrowClockwise size={15} />
-          </button>
+          <>
+            {dirty && field && <ImpactBadge impact={field.impact} />}
+            <button
+              type="button"
+              onClick={() => void load()}
+              aria-label="Refresh the template list"
+              title="Refresh the list"
+              className="rounded-md p-1.5 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg"
+            >
+              <ArrowsClockwise size={15} />
+            </button>
+          </>
         }
       />
 
-      {!catalog ? (
+      {loading ? (
         <div className="space-y-2 p-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
-      ) : entries.length === 0 ? (
+      ) : shelf.installed.length === 0 ? (
         <p className="px-5 py-6 text-center text-[13px] text-fg-muted">
-          No templates offered for this blog.
+          {shelf.registry.length
+            ? 'Nothing installed yet. Install one below, then select it.'
+            : 'No templates offered for this blog.'}
         </p>
       ) : (
-        <div className="divide-y divide-border">
-          {entries.map((entry) => {
+        <div className="divide-y divide-border" role="radiogroup" aria-label="Installed templates">
+          {shelf.installed.map((entry) => {
             const selected = value === entry.name;
             const busy = installing === entry.name;
             return (
               <div
                 key={entry.name}
                 className={cn(
-                  'flex items-center gap-3 px-4 py-2.5 transition-colors',
+                  'flex items-center transition-colors',
                   selected ? 'bg-accent-soft/40' : 'hover:bg-bg-subtle',
                 )}
               >
-                <span
-                  className={cn(
-                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                    selected
-                      ? 'bg-accent text-accent-fg'
-                      : 'bg-bg-subtle text-fg-subtle',
-                  )}
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => onSelect(entry.name)}
+                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left"
                 >
-                  {selected ? (
-                    <Check size={15} weight="bold" />
-                  ) : entry.source === 'private' ? (
-                    <Lock size={14} />
-                  ) : (
-                    <Storefront size={14} />
-                  )}
-                </span>
-
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-[13px] text-fg">{entry.name}</p>
-                  <p className="text-[11.5px] text-fg-subtle">
-                    {entry.source === 'private' ? 'Your registry' : 'Public repo'}
-                    {entry.active && ' · live'}
-                  </p>
-                </div>
-
-                {entry.installed ? (
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={Boolean(installing)}
-                      title="Refetch this template"
-                      onClick={() => void install(entry, true)}
-                    >
-                      {busy ? 'Updating…' : 'Update'}
-                    </Button>
-                    <Button
-                      variant={selected ? 'secondary' : 'primary'}
-                      size="sm"
-                      disabled={selected}
-                      onClick={() => onSelect(entry.name)}
-                    >
-                      {selected ? 'Selected' : 'Select'}
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="shrink-0"
-                    disabled={Boolean(installing)}
-                    onClick={() => void install(entry)}
+                  <span
+                    className={cn(
+                      // Round, because exactly one of these can be true — a
+                      // square box reads as a list you can tick several of.
+                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
+                      selected
+                        ? 'bg-accent text-accent-fg'
+                        : 'border border-border-strong bg-bg',
+                    )}
                   >
-                    <DownloadSimple size={14} />
-                    {busy ? 'Installing…' : 'Install'}
-                  </Button>
+                    {selected && <Check size={15} weight="bold" />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2">
+                      <span className="truncate font-mono text-[13px] text-fg">
+                        {entry.name}
+                      </span>
+                      {entry.name === live && (
+                        <span className="shrink-0 rounded-pill border border-border bg-bg-subtle px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
+                          Live
+                        </span>
+                      )}
+                    </span>
+                    <span className="block text-[11.5px] text-fg-subtle">
+                      {sourceLabel(entry.source)}
+                    </span>
+                  </span>
+                </button>
+
+                {/* Only a template a registry still offers can be refetched. */}
+                {entry.source && (
+                  <button
+                    type="button"
+                    disabled={Boolean(installing)}
+                    onClick={() => void install(entry.name, entry.source!, true)}
+                    aria-label={`Fetch ${entry.name} again`}
+                    title="Fetch this template again from its registry"
+                    className="mr-3 shrink-0 rounded-md p-1.5 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg disabled:opacity-40"
+                  >
+                    <ArrowClockwise size={14} className={busy ? 'animate-spin' : undefined} />
+                  </button>
                 )}
               </div>
             );
           })}
+        </div>
+      )}
+
+      {shelf.registry.length > 0 && (
+        <>
+          <p className="border-y border-border bg-bg-subtle px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+            Install from a registry
+          </p>
+          <div className="divide-y divide-border">
+            {shelf.registry.map((entry) => (
+              <div key={entry.name} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg-subtle text-fg-subtle">
+                  {entry.source === 'private' ? <Lock size={14} /> : <Storefront size={14} />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-mono text-[13px] text-fg">{entry.name}</p>
+                  <p className="text-[11.5px] text-fg-subtle">{sourceLabel(entry.source)}</p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={Boolean(installing)}
+                  onClick={() => entry.source && void install(entry.name, entry.source)}
+                >
+                  <DownloadSimple size={14} />
+                  {installing === entry.name ? 'Installing…' : 'Install'}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {dirty && field && field.effects.length > 0 && (
+        <div className="border-t border-border px-4 py-3">
+          {field.effects.map((e) => (
+            <p key={e} className="text-[12.5px] text-fg-muted">
+              {e}
+            </p>
+          ))}
         </div>
       )}
 
