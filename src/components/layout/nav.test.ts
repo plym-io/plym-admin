@@ -11,7 +11,7 @@ const cloudAdmin: NavContext = { role: 'administrator', cloud: true };
 describe('navigation grouping', () => {
   it('files every destination under the agreed section', () => {
     expect(labels(cloudAdmin)).toEqual({
-      '(none)': ['Support'],
+      '(none)': ['Support', 'Subscription'],
       Content: ['Posts', 'Media', 'Categories', 'Tags', 'FAQs'],
       Administration: ['Users', 'Settings', 'Domain'],
       Tools: ['MCP', 'API'],
@@ -46,8 +46,37 @@ describe('navigation grouping', () => {
   it('merges the unlabelled runs into one heading for the palette', () => {
     const sections = navSections(cloudAdmin);
     expect(sections[0]).toMatchObject({ label: 'Pages', items: expect.anything() });
-    expect(sections[0].items.map((i) => i.label)).toEqual(['Home', 'Support']);
+    expect(sections[0].items.map((i) => i.label)).toEqual([
+      'Home',
+      'Support',
+      'Subscription',
+    ]);
     expect(sections.every((s) => s.label)).toBe(true);
+  });
+});
+
+describe('destinations outside the panel', () => {
+  it('sends Subscription to the cloud console over https', () => {
+    const item = NAV.flatMap((g) => g.items).find((i) => i.label === 'Subscription');
+    expect(item).toMatchObject({ external: true, to: 'https://cloud.plym.io' });
+  });
+
+  it('keeps Subscription out of a self-hosted panel', () => {
+    // There is no subscription behind it, so the link would only ever be an
+    // advertisement inside someone's own admin.
+    const oss = visibleNav({ role: 'administrator', cloud: false }).flatMap((g) =>
+      g.items.map((i) => i.label),
+    );
+    expect(oss).not.toContain('Subscription');
+  });
+
+  it('never resolves the current route to an external item', () => {
+    // `startsWith` would otherwise let a stray path match an absolute URL and
+    // light up a sidebar row that isn't a page.
+    expect(locateNav('https://cloud.plym.io')).toBeNull();
+    expect(NAV.flatMap((g) => g.items).every((i) => !i.external || !i.to.startsWith('/'))).toBe(
+      true,
+    );
   });
 });
 

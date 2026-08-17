@@ -364,6 +364,26 @@
   color: var(--color-fg);
 }
 
+/* ------------------------------------------------------------------ *
+ * Editor galleries — the strip that stands in for a ```gallery fence.
+ * Plain CSS for the same reason as the tables above: this markup comes
+ * from a CodeMirror widget, which has no utility classes to reach for.
+ * ------------------------------------------------------------------ */
+.cm-md-gallery {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0.5em 0;
+}
+.cm-md-gallery img {
+  height: 104px;
+  width: auto;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-muted);
+  object-fit: cover;
+}
+
 @keyframes plym-shake {
   10%,
   90% {

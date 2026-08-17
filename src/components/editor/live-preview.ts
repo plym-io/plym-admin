@@ -10,6 +10,8 @@ import {
   WidgetType,
 } from '@codemirror/view';
 import { tableIsRendered, tablePreview } from './table-widget';
+import { galleryIsRendered, galleryPreview } from './gallery-widget';
+import { colonBlockPreview } from './colon-blocks';
 
 /**
  * "WYSIWYG" over a markdown document, the way Obsidian and Typora do it: the
@@ -166,6 +168,11 @@ function build(view: EditorView): DecorationSet {
             eachLine(node.from, node.to, line('cm-md-quote'));
             return;
           case 'FencedCode':
+            // A ```gallery drawn as a strip by the gallery field is not code
+            // on the page and shouldn't be dressed as code here.
+            if (galleryIsRendered(state, node.from, node.to)) return false;
+            eachLine(node.from, node.to, line('cm-md-codeblock'));
+            return;
           case 'CodeBlock':
             eachLine(node.from, node.to, line('cm-md-codeblock'));
             return;
@@ -309,7 +316,16 @@ const inlinePreview: Extension = ViewPlugin.fromClass(
 
 /**
  * Rendered markdown, live. Not registered at all in source mode, so the raw
- * document is exactly what you see. Tables come from their own state field:
- * a block widget can't be produced by a view plugin.
+ * document is exactly what you see.
+ *
+ * The three block constructs come from their own state fields — a block widget
+ * can't be produced by a view plugin, and a callout's tint has to be right
+ * before its opening line has been scrolled into view — and the inline plugin
+ * runs last, over everything they leave as ordinary text.
  */
-export const livePreview: Extension = [tablePreview, inlinePreview];
+export const livePreview: Extension = [
+  tablePreview,
+  galleryPreview,
+  colonBlockPreview,
+  inlinePreview,
+];

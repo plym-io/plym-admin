@@ -13,6 +13,7 @@ import {
   displayValue,
   initialDraft,
   sectionsFor,
+  toInput,
   worstImpact,
 } from '@/lib/settings';
 import { relativeTime } from '@/lib/format';
@@ -92,6 +93,10 @@ export default function CloudSettings() {
   }, [sections, active]);
 
   const current = sections.find((s) => s.id === active) ?? sections[0];
+  // `template` isn't a form row — it has a panel of its own, because choosing
+  // one and having one installed are the same question.
+  const templateField = current?.fields.find((f) => f.key === 'template');
+  const plainFields = (current?.fields ?? []).filter((f) => f !== templateField);
   const dirtyPerSection = useMemo(
     () =>
       Object.fromEntries(
@@ -140,28 +145,34 @@ export default function CloudSettings() {
           <div className="min-w-0 space-y-5">
             {current && (
               <>
-                <Panel flush>
-                  <PanelHeader title={current.title} description={current.description} />
-                  <div className="divide-y divide-border">
-                    {current.fields.map((field) => (
-                      <SettingField
-                        key={field.key}
-                        field={field}
-                        value={draft[field.key] ?? ''}
-                        templates={doc?.templates ?? []}
-                        dirty={dirty.includes(field.key)}
-                        onChange={(value) =>
-                          setDraft((d) => ({ ...d, [field.key]: value }))
-                        }
-                      />
-                    ))}
-                  </div>
-                </Panel>
+                {plainFields.length > 0 && (
+                  <Panel flush>
+                    <PanelHeader title={current.title} description={current.description} />
+                    <div className="divide-y divide-border">
+                      {plainFields.map((field) => (
+                        <SettingField
+                          key={field.key}
+                          field={field}
+                          value={draft[field.key] ?? ''}
+                          dirty={dirty.includes(field.key)}
+                          onChange={(value) =>
+                            setDraft((d) => ({ ...d, [field.key]: value }))
+                          }
+                        />
+                      ))}
+                    </div>
+                  </Panel>
+                )}
 
-                {/* The catalogue sits with the setting it feeds, so installing
-                    and selecting are one motion rather than two screens. */}
-                {current.id === 'template' && (
+                {/* The catalogue *is* the control for `template`: a select of
+                    installed names beside a catalogue offering the same names
+                    was two ways to say one thing, and neither said which of
+                    them could actually be picked. */}
+                {templateField && (
                   <TemplatePicker
+                    field={templateField}
+                    installed={doc?.templates ?? []}
+                    live={String(toInput(templateField.kind, doc?.values.template) || '')}
                     value={String(draft.template ?? '')}
                     onSelect={(name) => setDraft((d) => ({ ...d, template: name }))}
                     onInstalled={() => void load()}

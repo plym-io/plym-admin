@@ -60,6 +60,78 @@ describe('StrategyChoice', () => {
     );
     expect(container).toBeEmptyDOMElement();
   });
+
+  /**
+   * Cloudflare's three ways are two path proxies and a subdomain, and only the
+   * subdomain changes the address readers type. The titles don't say that; the
+   * catalogue's `kinds` do.
+   */
+  const KINDS = [
+    {
+      id: 'path-proxy',
+      label: 'Path proxy',
+      summary: 'The gateway forwards a path prefix on your own domain to plym.',
+    },
+    {
+      id: 'subdomain',
+      label: 'Subdomain',
+      summary: 'The blog is served on its own hostname pointed at plym.',
+    },
+  ];
+
+  const CLOUDFLARE = [
+    strategy({ id: 'worker', kind: 'path-proxy', label: 'Proxy /blog with a Worker' }),
+    strategy({ id: 'origin-rule', kind: 'path-proxy', label: 'Proxy /blog with an Origin Rule' }),
+    strategy({ id: 'subdomain', kind: 'subdomain', label: 'Serve the blog at blog.plym.io' }),
+  ];
+
+  it('tags each way with the family it belongs to', () => {
+    render(
+      <StrategyChoice
+        strategies={CLOUDFLARE}
+        kinds={KINDS}
+        selected="worker"
+        onSelect={vi.fn()}
+      />,
+    );
+    // Two tags plus one legend entry for the proxies; one of each for the rest.
+    expect(screen.getAllByText('Path proxy')).toHaveLength(3);
+    expect(screen.getAllByText('Subdomain')).toHaveLength(2);
+  });
+
+  it('explains the families when the choice actually spans two of them', () => {
+    render(
+      <StrategyChoice
+        strategies={CLOUDFLARE}
+        kinds={KINDS}
+        selected="worker"
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/own hostname pointed at plym/)).toBeInTheDocument();
+    expect(screen.getByText(/forwards a path prefix/)).toBeInTheDocument();
+  });
+
+  it('says nothing about families when every option is the same one', () => {
+    // Two ways to proxy a path don't need a paragraph about proxying paths.
+    render(
+      <StrategyChoice
+        strategies={CLOUDFLARE.slice(0, 2)}
+        kinds={KINDS}
+        selected="worker"
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/forwards a path prefix/)).not.toBeInTheDocument();
+  });
+
+  it('drops the tags rather than breaking on a gateway that sends no kinds', () => {
+    render(
+      <StrategyChoice strategies={CLOUDFLARE} selected="worker" onSelect={vi.fn()} />,
+    );
+    expect(screen.queryByText('Path proxy')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Worker/ })).toBeInTheDocument();
+  });
 });
 
 describe('GatewayPicker', () => {
@@ -90,6 +162,55 @@ describe('GatewayPicker', () => {
     );
 
     expect(screen.getByRole('button', { name: /nginx/i })).toBeEnabled();
+  });
+
+  const gateway = (id: string, category: string): Gateway => ({
+    id,
+    label: id,
+    category,
+    applicable: true,
+    docs: [],
+    strategies: [{ id: 'subdomain', kind: 'subdomain', label: 'Subdomain', applicable: true }],
+  });
+
+  /**
+   * For a path on a domain the catalogue has never seen, it answers with
+   * `recommended.gateway: null` and a `why` that says what to do about it. That
+   * sentence used to hang off the suggestion card, so the one payload that has
+   * nothing else to offer rendered no guidance at all.
+   */
+  it('shows the reason even when the payload names no gateway', () => {
+    render(
+      <GatewayPicker
+        gateways={[gateway('nginx', 'web-server'), gateway('caddy', 'web-server')]}
+        selected={null}
+        recommended={null}
+        why="/blog is a path on plym.io. Pick the gateway that serves plym.io today."
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Pick the gateway that serves plym\.io today/)).toBeInTheDocument();
+  });
+
+  it('does not repeat the reason once it has a card to sit under', () => {
+    render(
+      <GatewayPicker
+        gateways={[gateway('nginx', 'web-server'), gateway('caddy', 'web-server')]}
+        selected={null}
+        recommended="nginx"
+        why="Because nginx already serves it."
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText(/Because nginx already serves it/)).toHaveLength(1);
+  });
+
+  it('names the plym category rather than title-casing the brand', () => {
+    render(
+      <GatewayPicker gateways={[gateway('plym', 'plym')]} selected={null} onSelect={vi.fn()} />,
+    );
+    expect(screen.getByText('Without a gateway')).toBeInTheDocument();
+    expect(screen.queryByText('Plym')).not.toBeInTheDocument();
   });
 });
 

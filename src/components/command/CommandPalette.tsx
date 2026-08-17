@@ -9,7 +9,7 @@ import {
   MagnifyingGlass,
   ArrowUpRight,
 } from '@phosphor-icons/react';
-import { navSections, useNavContext } from '@/components/layout/nav';
+import { navSections, useNavContext, type NavItem } from '@/components/layout/nav';
 import { useUiStore } from '@/store/ui';
 import { usePostsStore } from '@/store/posts';
 import { useAuthStore } from '@/store/auth';
@@ -89,6 +89,13 @@ export function CommandPalette() {
   const run = (fn: () => void) => {
     setOpen(false);
     fn();
+  };
+
+  /** Jumping to a nav item — which for an external one means leaving. */
+  const goTo = (item: NavItem) => {
+    setOpen(false);
+    if (item.external) window.open(item.to, '_blank', 'noopener,noreferrer');
+    else navigate(item.to);
   };
 
   return (
@@ -182,9 +189,12 @@ export function CommandPalette() {
                         <Command.Item
                           key={item.to}
                           value={`${item.label} ${item.keywords ?? ''}`}
-                          onSelect={() => go(item.to)}
+                          onSelect={() => goTo(item)}
                         >
                           <Icon size={16} /> {item.label}
+                          {item.external && (
+                            <ArrowUpRight size={12} className="ml-auto text-fg-subtle" />
+                          )}
                         </Command.Item>
                       );
                     })}

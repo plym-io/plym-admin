@@ -9,8 +9,6 @@ interface Props {
   field: SettingSchema;
   value: string | boolean;
   onChange: (value: string | boolean) => void;
-  /** Choices for the `template` key, which the settings document supplies. */
-  templates: string[];
   /** Edited, not yet deployed. */
   dirty: boolean;
 }
@@ -23,9 +21,9 @@ const selectClass =
  * here knows a key name — `kind` picks the control, and a kind we've never seen
  * still gets a text box rather than disappearing from the form.
  */
-export function SettingField({ field, value, onChange, templates, dirty }: Props) {
+export function SettingField({ field, value, onChange, dirty }: Props) {
   const { key, kind } = field;
-  const options = field.choices ?? (key === 'template' ? templates : undefined);
+  const options = field.choices;
   const stacked = kind === 'html';
 
   const control = (() => {

@@ -1,6 +1,7 @@
+import { useMemo } from 'react';
 import { ArrowSquareOut, Info, Prohibit } from '@phosphor-icons/react';
 import { cn } from '@/lib/classnames';
-import type { GuideStrategy } from '@/types/cloud';
+import type { GuideStrategy, RoutingKind } from '@/types/cloud';
 import { Snippet } from './Snippet';
 
 /**
@@ -34,46 +35,89 @@ export function SupportBadge({ support }: { support?: string }) {
  * Picks between the ways one gateway can serve the chosen address. Most
  * gateways offer more than one, but the address the owner typed usually rules
  * all but one of them out, so this renders nothing at all in the common case.
+ *
+ * When it does render, the titles alone don't say what the choice is —
+ * Cloudflare offers "Proxy /blog with a Worker", "Proxy /blog with an Origin
+ * Rule" and "Serve the blog at blog.plym.io", and only the last one changes the
+ * address readers type. That distinction is the payload's `kinds` taxonomy, so
+ * each option is tagged with its kind and the kinds in play are spelled out
+ * underneath, in the gateway's own words.
  */
 export function StrategyChoice({
   strategies,
+  kinds,
   selected,
   onSelect,
 }: {
   strategies: GuideStrategy[];
+  /** The catalogue's own description of each family. Empty on an older gateway. */
+  kinds?: RoutingKind[];
   selected: string | null;
   onSelect: (id: string) => void;
 }) {
+  const byId = useMemo(
+    () => new Map((kinds ?? []).map((k) => [k.id, k])),
+    [kinds],
+  );
+  // Only worth explaining when the options actually differ in kind; two ways of
+  // proxying the same path don't need a paragraph about proxying paths.
+  const legend = useMemo(() => {
+    const present = [...new Set(strategies.map((s) => s.kind).filter(Boolean))];
+    if (present.length < 2) return [];
+    return present
+      .map((id) => byId.get(id as string))
+      .filter((k): k is RoutingKind => Boolean(k?.summary));
+  }, [strategies, byId]);
+
   if (strategies.length < 2) return null;
   return (
     <div className="mb-5">
       <p className="mb-2 text-[13px] text-fg-muted">There is more than one way to do this:</p>
       <div className="grid gap-2 sm:grid-cols-2">
-        {strategies.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => onSelect(s.id)}
-            aria-pressed={s.id === selected}
-            className={cn(
-              'rounded-lg border p-3 text-left transition-colors',
-              s.id === selected
-                ? 'border-accent bg-accent-soft'
-                : 'border-border hover:border-border-strong hover:bg-bg-subtle',
-            )}
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="truncate text-[13.5px] font-medium text-fg">{s.label}</span>
-              <SupportBadge support={s.support} />
-            </div>
-            {s.summary && (
-              <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-fg-muted">
-                {s.summary}
-              </p>
-            )}
-          </button>
-        ))}
+        {strategies.map((s) => {
+          const kind = s.kind ? byId.get(s.kind) : undefined;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => onSelect(s.id)}
+              aria-pressed={s.id === selected}
+              className={cn(
+                'rounded-lg border p-3 text-left transition-colors',
+                s.id === selected
+                  ? 'border-accent bg-accent-soft'
+                  : 'border-border hover:border-border-strong hover:bg-bg-subtle',
+              )}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-[13.5px] font-medium text-fg">{s.label}</span>
+                <SupportBadge support={s.support} />
+              </div>
+              {s.summary && (
+                <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug text-fg-muted">
+                  {s.summary}
+                </p>
+              )}
+              {kind && (
+                <span className="mt-2 inline-block rounded-full border border-border px-1.5 py-px text-[10.5px] font-medium text-fg-subtle">
+                  {kind.label}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
+
+      {legend.length > 0 && (
+        <dl className="mt-3 space-y-1">
+          {legend.map((k) => (
+            <div key={k.id} className="flex gap-1.5 text-[12.5px] leading-snug">
+              <dt className="shrink-0 font-medium text-fg-muted">{k.label}</dt>
+              <dd className="min-w-0 text-fg-subtle">{k.summary}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
     </div>
   );
 }

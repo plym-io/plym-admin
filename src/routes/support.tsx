@@ -41,8 +41,8 @@ const CLOUD: Channel[] = [
     icon: PhoneCall,
     title: 'Book a call',
     body: 'Half an hour with someone who knows your deployment.',
-    href: 'https://cal.com/adarshpunj',
-    action: 'cal.com/adarshpunj',
+    href: 'https://cal.com/adarshpunj/plym-support',
+    action: 'cal.com',
   },
   {
     icon: EnvelopeSimple,
