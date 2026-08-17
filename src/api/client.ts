@@ -189,7 +189,9 @@ export async function call<T>(
 ): Promise<T> {
   const { data, error, response } = await result;
   if (error !== undefined || !response.ok) {
-    throw await normalizeError(response);
+    // The body is spent: openapi-fetch parsed it into `error` before handing
+    // the response back, so it is passed in rather than read again.
+    throw normalizeError(response, error ?? null);
   }
   return data as T;
 }

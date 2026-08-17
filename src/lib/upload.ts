@@ -1,7 +1,7 @@
 import { apiBase } from '@/lib/base';
 import { freshAccessToken, renewSession } from '@/api/client';
 import type { MediaItem } from '@/types';
-import { normalizeError, type ApiError } from '@/api/errors';
+import { readError, type ApiError } from '@/api/errors';
 
 /**
  * Upload a file to POST /api/media with progress. openapi-fetch can't surface
@@ -61,7 +61,7 @@ function send(
         } satisfies ApiError);
       } else {
         const res = new Response(xhr.responseText, { status: xhr.status });
-        reject(await normalizeError(res));
+        reject(await readError(res));
       }
     };
     xhr.onerror = () =>

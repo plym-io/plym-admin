@@ -55,7 +55,7 @@ async function toError(res: Response): Promise<CloudError> {
       raw: body,
     };
   }
-  return normalizeError(res);
+  return normalizeError(res, body);
 }
 
 async function request<T>(

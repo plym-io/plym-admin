@@ -235,3 +235,51 @@ describe('expired access token', () => {
     expect(calls[2].headers.get('Authorization')).toBe('Bearer new-access');
   });
 });
+
+describe('the error a failed call throws', () => {
+  it('carries the domain code and message the API wrote', async () => {
+    const { api, call } = await withFetch([
+      () =>
+        json(
+          { detail: { code: 'slug_taken', message: 'That address is already taken.' } },
+          409,
+        ),
+    ]);
+
+    // openapi-fetch reads the body before handing the response back, so
+    // anything that tries to read it a second time gets nothing and the
+    // customer is shown the bare status text instead of this message.
+    await expect(call(api.GET('/api/posts'))).rejects.toMatchObject({
+      code: 'slug_taken',
+      message: 'That address is already taken.',
+      status: 409,
+    });
+  });
+
+  it('reports a validation error against its field', async () => {
+    const { api, call } = await withFetch([
+      () =>
+        json(
+          { detail: [{ loc: ['body', 'slug'], msg: 'string too short', type: 'value_error' }] },
+          422,
+        ),
+    ]);
+
+    await expect(call(api.GET('/api/posts'))).rejects.toMatchObject({
+      code: 'validation_error',
+      message: 'slug: string too short',
+      status: 422,
+    });
+  });
+
+  it('falls back to the status text when the body is not JSON', async () => {
+    const { api, call } = await withFetch([
+      () => new Response('<html>502</html>', { status: 502, statusText: 'Bad Gateway' }),
+    ]);
+
+    await expect(call(api.GET('/api/posts'))).rejects.toMatchObject({
+      code: 'http.502',
+      status: 502,
+    });
+  });
+});
