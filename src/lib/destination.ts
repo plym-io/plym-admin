@@ -127,7 +127,7 @@ export function parseDestination(input: string, platformDomain?: string): Parsed
  */
 export function describeDestination(d: Destination): string {
   if (d.shape === 'path') {
-    return `A section of ${d.host}, at ${d.prefix} — the rest of the site stays exactly as it is.`;
+    return `A section of ${d.host}, at ${d.prefix}.`;
   }
   if (d.shape === 'subdomain') {
     return 'A subdomain, separate from your main site.';

@@ -60,8 +60,8 @@ describe('parseDestination', () => {
 });
 
 describe('describeDestination', () => {
-  it('says what happens to the rest of the site', () => {
-    expect(describeDestination(parse('acme.com/blog'))).toContain('rest of the site');
+  it('names the shape the owner typed, and nothing more', () => {
+    expect(describeDestination(parse('acme.com/blog'))).toBe('A section of acme.com, at /blog.');
     expect(describeDestination(parse('blog.acme.com'))).toContain('separate from your main site');
   });
 
