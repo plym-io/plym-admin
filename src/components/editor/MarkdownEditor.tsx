@@ -388,6 +388,67 @@ export function MarkdownEditor({
           borderRadius: 'var(--radius-lg, 8px)',
           margin: '0.4em 0',
         },
+
+        // ---- plym's ::: blocks ----
+        // Drawn as a tinted band down the left, one line decoration per line,
+        // so the body inside stays ordinary editable markdown.
+        '.cm-md-cb': {
+          backgroundColor: 'var(--color-bg-subtle)',
+          borderLeft: '3px solid var(--color-border-strong)',
+          paddingLeft: '0.9em',
+          paddingRight: '0.6em',
+        },
+        '.cm-md-cb-open': {
+          paddingTop: '0.35em',
+          fontWeight: '600',
+        },
+        '.cm-md-cb-collapsed': {
+          fontSize: '0.35em',
+        },
+        '.cm-md-cb-note, .cm-md-cb-important': {
+          borderLeftColor: 'var(--color-accent)',
+        },
+        '.cm-md-cb-warning, .cm-md-cb-caution, .cm-md-cb-attention': {
+          borderLeftColor: 'var(--color-warning)',
+        },
+        '.cm-md-cb-danger, .cm-md-cb-error': {
+          borderLeftColor: 'var(--color-danger)',
+        },
+        '.cm-md-cb-tip, .cm-md-cb-hint': {
+          borderLeftColor: 'var(--color-success)',
+        },
+        '.cm-md-cb-note.cm-md-cb-open, .cm-md-cb-important.cm-md-cb-open': {
+          color: 'var(--color-accent)',
+        },
+        '.cm-md-cb-warning.cm-md-cb-open, .cm-md-cb-caution.cm-md-cb-open, .cm-md-cb-attention.cm-md-cb-open':
+          { color: 'var(--color-warning)' },
+        '.cm-md-cb-danger.cm-md-cb-open, .cm-md-cb-error.cm-md-cb-open': {
+          color: 'var(--color-danger)',
+        },
+        '.cm-md-cb-tip.cm-md-cb-open, .cm-md-cb-hint.cm-md-cb-open': {
+          color: 'var(--color-success)',
+        },
+        // A tab set is the container; each pane's label is the bar that opens
+        // it. Real tabs hide the panes you aren't reading — which is exactly
+        // what you can't do to text someone is editing.
+        '.cm-md-cb-tabs': {
+          borderLeftColor: 'var(--color-border-strong)',
+          backgroundColor: 'var(--color-bg-muted)',
+        },
+        '.cm-md-cb-tab': {
+          backgroundColor: 'var(--color-bg-subtle)',
+          borderLeftColor: 'var(--color-accent)',
+        },
+        '.cm-md-cb-tab.cm-md-cb-open': {
+          fontFamily: 'var(--font-sans)',
+          fontSize: '0.8em',
+          letterSpacing: '0.02em',
+          textTransform: 'uppercase',
+          color: 'var(--color-fg-muted)',
+        },
+        '.cm-md-cb-title, .cm-md-cb-tablabel': {
+          color: 'inherit',
+        },
       }),
     [source],
   );

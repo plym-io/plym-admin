@@ -97,6 +97,17 @@ export function insertLink(state: EditorState): TransactionSpec {
   });
 }
 
+/**
+ * The newlines a block construct needs in front of it to start its own block
+ * at `pos`. Markdown keeps reading the paragraph you are in otherwise, so a
+ * table or a `:::` fence typed mid-sentence would join it rather than open.
+ */
+export function blockLead(state: EditorState, pos: number): string {
+  const line = state.doc.lineAt(pos);
+  if (state.sliceDoc(line.from, pos).trim() !== '') return '\n\n';
+  return line.number > 1 && state.doc.line(line.number - 1).text.trim() !== '' ? '\n' : '';
+}
+
 /** Dispatch a spec and hand focus back to the writing surface. */
 export function run(view: EditorView, spec: TransactionSpec) {
   view.dispatch(spec);

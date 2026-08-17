@@ -12,8 +12,14 @@ import {
   LinkSimple,
   Image as ImageIcon,
   Images,
+  ImagesSquare,
+  Note,
+  Warning,
+  Lightbulb,
+  Browsers,
   type Icon,
 } from '@phosphor-icons/react';
+import { blockLead } from './format-commands';
 
 /** Context handed to a command when it runs. */
 export interface SlashContext {
@@ -63,6 +69,20 @@ export function clearRange(ctx: SlashContext) {
 }
 
 import { insertTable } from './table-widget';
+
+/** Where the caret should land in a block template. Stripped before insertion. */
+const CARET = '‸';
+
+/**
+ * Drop a multi-line construct in as its own block, wherever the "/" was typed,
+ * and put the caret where the template asks for it.
+ */
+function insertBlock(ctx: SlashContext, template: string) {
+  const lead = blockLead(ctx.view.state, ctx.from);
+  const at = template.indexOf(CARET);
+  const insert = lead + template.replace(CARET, '');
+  replaceRange(ctx, insert, at === -1 ? insert.length : lead.length + at);
+}
 
 export const SLASH_COMMANDS: SlashCommand[] = [
   {
@@ -131,6 +151,53 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     // The caret lands *after* the table so it renders as a grid straight
     // away; focus then goes to its first header cell.
     run: (c) => insertTable(c.view, c.from, c.to),
+  },
+  // plym's block extensions. Three of the nine admonition names are offered
+  // here — the rest are the same construct with a different word, and nine
+  // near-identical rows would bury everything else in this menu.
+  {
+    id: 'note',
+    title: 'Note',
+    hint: 'A callout beside the text',
+    keywords: ['note', 'callout', 'admonition', 'aside', 'info'],
+    icon: Note,
+    run: (c) => insertBlock(c, `:::note\n${CARET}\n:::\n`),
+  },
+  {
+    id: 'warning',
+    title: 'Warning',
+    hint: 'A callout that says be careful',
+    keywords: ['warning', 'alert', 'caution', 'danger'],
+    icon: Warning,
+    run: (c) => insertBlock(c, `:::warning\n${CARET}\n:::\n`),
+  },
+  {
+    id: 'tip',
+    title: 'Tip',
+    hint: 'A callout with advice in it',
+    keywords: ['tip', 'hint', 'advice'],
+    icon: Lightbulb,
+    run: (c) => insertBlock(c, `:::tip\n${CARET}\n:::\n`),
+  },
+  {
+    id: 'tabs',
+    title: 'Tabs',
+    hint: 'One block, switchable panes',
+    keywords: ['tabs', 'tabbed', 'panes', 'switch'],
+    icon: Browsers,
+    run: (c) =>
+      insertBlock(
+        c,
+        `:::tabs\n:::tab First\n${CARET}\n:::\n:::tab Second\n\n:::\n:::\n`,
+      ),
+  },
+  {
+    id: 'gallery',
+    title: 'Gallery',
+    hint: 'A strip of images, one per line',
+    keywords: ['gallery', 'images', 'photos', 'strip', 'grid'],
+    icon: ImagesSquare,
+    run: (c) => insertBlock(c, '```gallery\n' + CARET + '\n```\n'),
   },
   {
     id: 'divider',

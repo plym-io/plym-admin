@@ -23,6 +23,7 @@ import {
   setCell,
   type TableModel,
 } from './md-table';
+import { blockLead } from './format-commands';
 
 /**
  * Markdown tables, rendered as a table. The document still holds the pipes —
@@ -54,18 +55,13 @@ function focusNewTable() {
 }
 
 /**
- * Drop a fresh table over [from, to), on its own block. The blank lines
- * matter: markdown keeps reading rows until one, so without the trailing gap
- * the next sentence you type becomes another row of the table.
+ * Drop a fresh table over [from, to), on its own block. The trailing blank
+ * line matters: markdown keeps reading rows until one, so without it the next
+ * sentence you type becomes another row of the table.
  */
 export function insertTable(view: EditorView, from: number, to: number) {
   const { state } = view;
-  const line = state.doc.lineAt(from);
-  const openLine = state.sliceDoc(line.from, from).trim() !== '';
-  const prevUsed =
-    line.number > 1 && state.doc.line(line.number - 1).text.trim() !== '';
-  const lead = openLine ? '\n\n' : prevUsed ? '\n' : '';
-  const text = `${lead}${blankTable()}\n\n`;
+  const text = `${blockLead(state, from)}${blankTable()}\n\n`;
   focusNewTable();
   view.dispatch({
     changes: { from, to, insert: text },
