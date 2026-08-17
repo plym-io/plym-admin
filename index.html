@@ -10,15 +10,11 @@
     <link rel="alternate icon" type="image/webp" href="/favicon.webp" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Archivo/Space Grotesk are the admin's UI faces. The editor has two
          and only two: Merriweather for prose, Google Sans Code for markdown
-         source and code. -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Merriweather:ital,opsz,wght@0,18..144,300..800;1,18..144,300..800&family=Google+Sans+Code:ital,wght@0,300..700;1,300..700&display=swap"
-      rel="stylesheet"
-    />
+         source and code. All four ship with the bundle rather than loading
+         from Google's CDN — the panel's CSP allows fonts and stylesheets from
+         'self' only, so a linked one never arrives. See scripts/vendor-fonts.mjs. -->
     <title>plym - Admin</title>
     <!-- Theme before first paint. The store reaches the same answer a moment
          later, but a module bundle is far too late to decide the background
