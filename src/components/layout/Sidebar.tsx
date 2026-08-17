@@ -1,14 +1,48 @@
 import { Link, NavLink } from 'react-router';
 import { motion } from 'motion/react';
-import { CaretLineLeft, CaretLineRight } from '@phosphor-icons/react';
+import { ArrowSquareOut, CaretLineLeft, CaretLineRight } from '@phosphor-icons/react';
 import { useUiStore } from '@/store/ui';
 import { useEdition } from '@/store/cloud';
 import { cn } from '@/lib/classnames';
 import { asset } from '@/lib/base';
 import { useNavContext, visibleNav, type NavItem } from './nav';
 
+const ROW =
+  'group relative flex items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13.5px] font-medium transition-colors';
+
+/**
+ * A destination outside the panel. Deliberately not a NavLink: it can never be
+ * the active route, and the arrow says so before the click rather than after
+ * the tab has opened.
+ */
+function ExternalItem({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
+  const Icon = item.icon;
+  return (
+    <a
+      href={item.to}
+      target="_blank"
+      rel="noreferrer noopener"
+      title={collapsed ? item.label : undefined}
+      className={cn(
+        ROW,
+        'text-fg-muted hover:bg-bg-muted hover:text-fg',
+        collapsed && 'justify-center px-0',
+      )}
+    >
+      <Icon size={17} className="shrink-0" />
+      {!collapsed && (
+        <>
+          <span className="truncate">{item.label}</span>
+          <ArrowSquareOut size={12} className="ml-auto shrink-0 text-fg-subtle" />
+        </>
+      )}
+    </a>
+  );
+}
+
 function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const Icon = item.icon;
+  if (item.external) return <ExternalItem item={item} collapsed={collapsed} />;
   return (
     <NavLink
       to={item.to}
@@ -16,7 +50,7 @@ function Item({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       title={collapsed ? item.label : undefined}
       className={({ isActive }) =>
         cn(
-          'group relative flex items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13.5px] font-medium transition-colors',
+          ROW,
           collapsed && 'justify-center px-0',
           isActive ? 'text-fg' : 'text-fg-muted hover:bg-bg-muted hover:text-fg',
         )

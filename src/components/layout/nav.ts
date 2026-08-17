@@ -12,6 +12,7 @@ import {
   Code,
   Lifebuoy,
   ChartLine,
+  CreditCard,
 } from '@phosphor-icons/react';
 import { McpIcon } from '@/components/ui/mcp-icon';
 import type { UiIcon } from '@/components/ui/icon';
@@ -20,11 +21,17 @@ import { useAuthStore } from '@/store/auth';
 import type { Capabilities } from '@/types/cloud';
 
 export interface NavItem {
+  /** A route inside the panel, or an absolute URL when `external`. */
   to: string;
   label: string;
   icon: UiIcon;
   /** Extra words the command palette should match on. */
   keywords?: string;
+  /**
+   * Somewhere else entirely: opened in a new tab, marked as leaving, and never
+   * matched against the current route.
+   */
+  external?: boolean;
   adminOnly?: boolean;
   /** Only exists on plym cloud — an OSS blog has nothing to put on the page. */
   cloudOnly?: boolean;
@@ -134,6 +141,17 @@ export const NAV: NavGroup[] = [
   {
     items: [
       { to: '/support', label: 'Support', icon: Lifebuoy, keywords: 'help contact' },
+      // Plans and invoices belong to the account, not to this blog, and the
+      // account lives in the cloud console. A self-hosted blog has no
+      // subscription at all, so it doesn't get the link.
+      {
+        to: 'https://cloud.plym.io',
+        label: 'Subscription',
+        icon: CreditCard,
+        keywords: 'billing plan invoice payment upgrade',
+        external: true,
+        cloudOnly: true,
+      },
     ],
   },
 ];
@@ -162,7 +180,8 @@ export function visibleNav({ role, cloud, capabilities }: NavContext): NavGroup[
 /**
  * Where a path sits in the nav: its section, and the item it belongs to.
  * Matched on the longest `to` that prefixes the path, so `/posts/42` resolves
- * to Posts rather than falling through to Home.
+ * to Posts rather than falling through to Home. External destinations aren't
+ * routes here and can never be the answer.
  */
 export function locateNav(
   pathname: string,
@@ -170,6 +189,7 @@ export function locateNav(
   let best: { group?: string; item: NavItem } | null = null;
   for (const group of NAV) {
     for (const item of group.items) {
+      if (item.external) continue;
       if (item.to === '/') {
         if (pathname === '/') best = { group: group.label, item };
         continue;
