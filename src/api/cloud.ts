@@ -185,16 +185,11 @@ export async function getTemplates(): Promise<TemplateCatalog> {
 export function installTemplate(
   name: string,
   source: TemplateSource = 'public',
-  opts: { update?: boolean; ref?: string } = {},
+  opts: { ref?: string } = {},
 ): Promise<Accepted> {
   return request<Accepted>('/templates', {
     method: 'POST',
-    body: {
-      name,
-      source,
-      ...(opts.update ? { update: true } : {}),
-      ...(opts.ref ? { ref: opts.ref } : {}),
-    },
+    body: { name, source, ...(opts.ref ? { ref: opts.ref } : {}) },
   });
 }
 
