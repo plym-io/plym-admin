@@ -41,8 +41,8 @@ function ConnectAClient({ url }: { url: string }) {
       "type": "http",
       "url": "${url}",
       "headers": {
-        "X-User-Identity": "you@example.com",
-        "X-Mcp-Token": "your-plym-password"
+        "X-User-Identity": "mcp-bot@example.com",
+        "X-Mcp-Token": "that-user's-password"
       }
     }
   }
@@ -65,7 +65,10 @@ function ConnectAClient({ url }: { url: string }) {
               an account on this blog;{' '}
               <code className="font-mono text-fg">X-Mcp-Token</code> is that account's
               password. There is no separate MCP key — a client can do whatever its
-              account can.
+              account can. Create a dedicated user for it under Users (the editor role
+              covers posts, media and FAQs) rather than handing a client your own
+              sign-in: you can revoke or rotate that one user without touching anything
+              else.
             </p>
           </div>
 
@@ -80,8 +83,8 @@ function ConnectAClient({ url }: { url: string }) {
             </p>
             <Snippet
               code={`npx mcp-remote ${url} \\
-  --header "X-User-Identity: you@example.com" \\
-  --header "X-Mcp-Token: your-plym-password"`}
+  --header "X-User-Identity: mcp-bot@example.com" \\
+  --header "X-Mcp-Token: that-user's-password"`}
             />
           </div>
         </div>
