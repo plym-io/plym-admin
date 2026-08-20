@@ -21,6 +21,7 @@ import { useUiStore } from '@/store/ui';
 import { useAutosave } from '@/hooks/use-autosave';
 import { useShortcut } from '@/hooks/use-shortcut';
 import { slugify, relativeTime, hostname } from '@/lib/format';
+import { deriveExcerpt } from '@/lib/excerpt';
 import type { Faq, Post, PostStatus } from '@/types';
 import { MarkdownEditor, type EditorMode } from '@/components/editor/MarkdownEditor';
 import { CoverWidget } from '@/components/editor/CoverWidget';
@@ -367,14 +368,28 @@ export default function PostEditor() {
   const setStatus = useCallback(
     async (status: PostStatus) => {
       const prev = draft.status;
-      setDraft((d) => ({ ...d, status })); // optimistic
+      const prevExcerpt = draft.excerpt;
+      // Going live with the field blank ships a post with no meta description,
+      // no og:description and no JSON-LD description at all, so fill it from
+      // the opening prose. Only ever when empty — an excerpt the author wrote
+      // is theirs — and it lands in the visible field, editable afterwards.
+      const derived =
+        status === 'published' && !draftRef.current.excerpt.trim()
+          ? deriveExcerpt(draftRef.current.content)
+          : '';
+
+      const optimistic = { ...draftRef.current, status };
+      if (derived) optimistic.excerpt = derived;
+      draftRef.current = optimistic;
+      setDraft(optimistic);
+
       if (postIdRef.current === null) return;
       setStatusPending(true);
       try {
         const updated = await call(
           api.PATCH('/api/posts/{post_id}', {
             params: { path: { post_id: postIdRef.current } },
-            body: { status },
+            body: derived ? { status, excerpt: derived } : { status },
           }),
         );
         setLivePath(updated.path);
@@ -394,13 +409,13 @@ export default function PostEditor() {
             : `Moved to ${status}.`,
         );
       } catch (e) {
-        setDraft((d) => ({ ...d, status: prev }));
+        setDraft((d) => ({ ...d, status: prev, excerpt: prevExcerpt }));
         toast.error(isApiError(e) ? e.message : 'Could not change status');
       } finally {
         setStatusPending(false);
       }
     },
-    [draft.status, adoptPublishedAt],
+    [draft.status, draft.excerpt, adoptPublishedAt],
   );
 
   // ---- explicit save (⌘S) — flush autosave then refresh rendered file -

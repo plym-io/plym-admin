@@ -92,7 +92,10 @@ describe('post editor — published_at', () => {
 
     await user.click(screen.getByRole('radio', { name: /published/i }));
     await waitFor(() => expect(patchBodies()).toHaveLength(1));
-    expect(patchBodies()[0]).toEqual({ status: 'published' });
+    // Publishing also fills a blank excerpt (see the block below); this test is
+    // only about what happens to the date, so it asserts nothing wider.
+    expect(patchBodies()[0]).toMatchObject({ status: 'published' });
+    expect(patchBodies()[0]).not.toHaveProperty('published_at');
 
     // Keep writing. This is the save that used to undo the publish date.
     await user.type(screen.getByPlaceholderText('Title'), '!');
@@ -125,5 +128,102 @@ describe('post editor — published_at', () => {
 
     await waitFor(() => expect(patchBodies()).toHaveLength(1), { timeout: 4000 });
     expect(patchBodies()[0].published_at).toBe('2019-03-04T12:00:00Z');
+  });
+});
+
+/**
+ * The excerpt is the post's meta description, og:description and JSON-LD
+ * description all at once, so publishing with the field blank ships a post
+ * with none of them. Publishing fills it from the opening prose — visibly, so
+ * the author can still edit what went out.
+ */
+describe('post editor — excerpt on publish', () => {
+  const excerptField = () => screen.getByPlaceholderText('Add a one-line excerpt…');
+
+  const loadPost = (post: Record<string, unknown>) =>
+    getMock.mockImplementation((path: string) =>
+      path === '/api/posts/{post_id}'
+        ? Promise.resolve({ ...DRAFT_POST, ...post })
+        : Promise.resolve([]),
+    );
+
+  it('derives one from the content when the field is empty', async () => {
+    const user = userEvent.setup();
+    loadPost({
+      excerpt: null,
+      content: '# A title\n\nThe first thing the post actually says.\n\nMore later.',
+    });
+    renderEditor();
+    await screen.findByTestId('markdown-editor');
+
+    await user.click(screen.getByRole('radio', { name: /published/i }));
+
+    await waitFor(() => expect(patchBodies()).toHaveLength(1));
+    expect(patchBodies()[0]).toEqual({
+      status: 'published',
+      excerpt: 'The first thing the post actually says.',
+    });
+  });
+
+  it('shows what it derived, so the author can change it', async () => {
+    const user = userEvent.setup();
+    loadPost({ excerpt: null, content: 'What this post is about.' });
+    renderEditor();
+    await screen.findByTestId('markdown-editor');
+
+    expect(excerptField()).toHaveValue('');
+    await user.click(screen.getByRole('radio', { name: /published/i }));
+
+    await waitFor(() => expect(excerptField()).toHaveValue('What this post is about.'));
+  });
+
+  it('never overwrites an excerpt the author wrote', async () => {
+    const user = userEvent.setup();
+    loadPost({ excerpt: 'Mine, thanks.', content: 'Something else entirely.' });
+    renderEditor();
+    await screen.findByTestId('markdown-editor');
+
+    await user.click(screen.getByRole('radio', { name: /published/i }));
+
+    await waitFor(() => expect(patchBodies()).toHaveLength(1));
+    expect(patchBodies()[0]).toEqual({ status: 'published' });
+    expect(excerptField()).toHaveValue('Mine, thanks.');
+  });
+
+  it('only derives on the way to published', async () => {
+    const user = userEvent.setup();
+    loadPost({ excerpt: null, content: 'Some prose.', status: 'draft' });
+    renderEditor();
+    await screen.findByTestId('markdown-editor');
+
+    await user.click(screen.getByRole('radio', { name: /archived/i }));
+
+    await waitFor(() => expect(patchBodies()).toHaveLength(1));
+    expect(patchBodies()[0]).toEqual({ status: 'archived' });
+  });
+
+  it('sends nothing extra when there is no prose to derive from', async () => {
+    const user = userEvent.setup();
+    loadPost({ excerpt: null, content: '```\njust code\n```' });
+    renderEditor();
+    await screen.findByTestId('markdown-editor');
+
+    await user.click(screen.getByRole('radio', { name: /published/i }));
+
+    await waitFor(() => expect(patchBodies()).toHaveLength(1));
+    expect(patchBodies()[0]).toEqual({ status: 'published' });
+  });
+
+  it('puts the field back when publishing fails', async () => {
+    const user = userEvent.setup();
+    loadPost({ excerpt: null, content: 'Some prose.' });
+    patchMock.mockRejectedValue(new Error('nope'));
+    renderEditor();
+    await screen.findByTestId('markdown-editor');
+
+    await user.click(screen.getByRole('radio', { name: /published/i }));
+
+    await waitFor(() => expect(screen.getByRole('radio', { name: /draft/i })).toBeChecked());
+    expect(excerptField()).toHaveValue('');
   });
 });
