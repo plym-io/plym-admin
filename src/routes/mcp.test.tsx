@@ -66,6 +66,27 @@ describe('an editor', () => {
   });
 });
 
+describe('the credentials it hands out', () => {
+  /**
+   * A client config is a file on someone's laptop, and an administrator's
+   * password is now a break-glass credential nobody is shown — so neither the
+   * prose nor the samples may suggest putting one there.
+   */
+  it('points at a user made for the client, not the one reading the page', async () => {
+    signIn('administrator');
+    edition('cloud');
+    render(<Mcp />);
+    await screen.findByText('Connect a client');
+
+    // The advice runs through <code> spans, so it only reads as one sentence
+    // in the page's text.
+    const page = document.body.textContent ?? '';
+    expect(page).toContain('Create a dedicated user for it under Users');
+    expect(page).not.toContain('your-plym-password');
+    expect(page).not.toContain('you@example.com');
+  });
+});
+
 describe('an administrator', () => {
   it('keeps the switch on cloud', async () => {
     signIn('administrator');
