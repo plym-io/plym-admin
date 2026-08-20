@@ -20,6 +20,7 @@ import { FormatToolbar, type EditorActions } from './FormatToolbar';
 import { SelectionMenu } from './SelectionMenu';
 import { BOLD, ITALIC, insertLink, run, toggleInline } from './format-commands';
 import { insertTable } from './table-widget';
+import { richPaste } from './rich-paste';
 
 export type EditorMode = 'wysiwyg' | 'markdown';
 
@@ -460,6 +461,16 @@ export function MarkdownEditor({
       // Registered in both modes — basicSetup's default style is a `fallback`,
       // so this simply takes precedence over it.
       proseHighlight,
+      // Google Docs and Word keep their formatting in the clipboard's HTML
+      // flavour, which CodeMirror's own paste handler never reads.
+      richPaste({
+        onDroppedImages: (count) =>
+          toast.message(
+            count === 1
+              ? "One image couldn't come across — add it with /image."
+              : `${count} images couldn't come across — add them with /image.`,
+          ),
+      }),
       ...(mode === 'wysiwyg' ? [livePreview] : []),
       CMView.updateListener.of((u) => {
         if (u.docChanged || u.selectionSet || u.focusChanged || u.geometryChanged) {
