@@ -8,6 +8,7 @@ import { useIsCloud } from '@/store/cloud';
 import { useAuthStore } from '@/store/auth';
 
 const Login = lazy(() => import('@/routes/login'));
+const Handoff = lazy(() => import('@/routes/handoff'));
 const Home = lazy(() => import('@/routes/home'));
 const PostsList = lazy(() => import('@/routes/posts.list'));
 const PostEditor = lazy(() => import('@/routes/posts.editor'));
@@ -52,6 +53,9 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
 const router = createBrowserRouter(
   [
     { path: '/login', element: wrap(<Login />) },
+    // Outside RequireAuth on purpose: the session it is here to establish does
+    // not exist yet, and a bounce to /login would spend the code for nothing.
+    { path: '/handoff', element: wrap(<Handoff />) },
     {
       element: (
         <RequireAuth>

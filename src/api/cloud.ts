@@ -136,6 +136,38 @@ export async function detectEdition(): Promise<{
   }
 }
 
+/* ── sign-in ──────────────────────────────────────────────────────────── */
+
+export interface HandoffSession {
+  accessToken: string;
+  refreshToken: string;
+}
+
+/**
+ * Trade a single-use handoff code for a session on this blog.
+ *
+ * The plym Cloud console mints the code for one tenant after checking that the
+ * signed-in cloud account owns it; it lives 60 seconds and is spent the moment
+ * the gateway asks the control plane to redeem it. That makes every failure
+ * final — there is nothing to retry here, only a fresh link to fetch from the
+ * console.
+ *
+ * The one gateway call that carries no bearer token, because the code is the
+ * credential. It is also the only one where a 401 means "this code is no good"
+ * rather than "this session is spent", so it must not go near the panel's
+ * refresh-and-retry path.
+ */
+export async function redeemHandoff(code: string): Promise<HandoffSession> {
+  const session = await request<{ access_token: string; refresh_token: string }>(
+    '/handoff',
+    { method: 'POST', body: { code }, auth: false },
+  );
+  return {
+    accessToken: session.access_token,
+    refreshToken: session.refresh_token,
+  };
+}
+
 /* ── settings ─────────────────────────────────────────────────────────── */
 
 export async function getSettings(): Promise<SettingsDocument> {
