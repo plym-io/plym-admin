@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { detectEdition, type Edition } from '@/api/cloud';
+import { detectEdition, rootUser, type Edition } from '@/api/cloud';
 import type { Capabilities } from '@/types/cloud';
 
 interface CloudState {
@@ -8,6 +8,9 @@ interface CloudState {
   edition: Edition | null;
   capabilities: Capabilities | null;
   detect: () => Promise<void>;
+  /** The console's sign-in account, or `null` when this blog has no such fact. */
+  rootUserId: number | null;
+  loadRoot: () => Promise<void>;
 }
 
 /**
@@ -18,13 +21,21 @@ interface CloudState {
  */
 export const useCloudStore = create<CloudState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       edition: null,
       capabilities: null,
       detect: async () => {
         const { edition, capabilities } = await detectEdition();
         // An unanswered probe is not an answer: keep whatever we knew.
         if (edition) set({ edition, capabilities });
+      },
+      rootUserId: null,
+      loadRoot: async () => {
+        // The gateway advertises this route rather than leaving the panel to
+        // discover it by 404, so wait for the edition probe and believe it.
+        await detectEditionOnce();
+        if (get().capabilities?.root !== true) return;
+        set({ rootUserId: await rootUser() });
       },
     }),
     {
@@ -41,8 +52,21 @@ export function detectEditionOnce(): Promise<void> {
   return probe;
 }
 
+/**
+ * One Root lookup per page load. Unlike the edition probe this one needs a
+ * session, so it is asked for by the screens that label users rather than
+ * fired at startup — and it is not persisted: who Root is can change under a
+ * blog, and a chip is only worth showing when it was just confirmed.
+ */
+let rootProbe: Promise<void> | null = null;
+export function loadRootUserOnce(): Promise<void> {
+  rootProbe ??= useCloudStore.getState().loadRoot();
+  return rootProbe;
+}
+
 export const useEdition = () => useCloudStore((s) => s.edition);
 export const useIsCloud = () => useCloudStore((s) => s.edition === 'cloud');
+export const useRootUserId = () => useCloudStore((s) => s.rootUserId);
 
 /**
  * Whether a cloud feature is switched on for this deployment. Unknown flags

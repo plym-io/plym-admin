@@ -168,6 +168,26 @@ export async function redeemHandoff(code: string): Promise<HandoffSession> {
   };
 }
 
+/**
+ * Which user the console signs a handoff in as — the platform's "Root".
+ *
+ * Not a plym role: plym knows it only as an administrator. The gateway knows
+ * it is the account whose password is a break-glass machine credential, so the
+ * panel labels it and keeps password controls away from it.
+ *
+ * `null` covers every way there is no answer to show — the tenant has no
+ * superuser row, or the gateway could not be asked. A Root chip has to be a
+ * fact, so anything short of one leaves the panel as it was.
+ */
+export async function rootUser(): Promise<number | null> {
+  try {
+    const { user_id } = await request<{ user_id: number | null }>('/root');
+    return typeof user_id === 'number' ? user_id : null;
+  } catch {
+    return null;
+  }
+}
+
 /* ── settings ─────────────────────────────────────────────────────────── */
 
 export async function getSettings(): Promise<SettingsDocument> {

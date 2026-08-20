@@ -5,6 +5,7 @@ import { Plus, Key, Prohibit, ArrowCounterClockwise } from '@phosphor-icons/reac
 import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import { useAuthStore } from '@/store/auth';
+import { loadRootUserOnce, useRootUserId } from '@/store/cloud';
 import type { Role, User } from '@/types';
 import { Page, PageHeader, Panel } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,15 @@ const ROLE_STYLE: Record<Role, string> = {
   editor: 'border-border bg-bg-subtle text-fg-muted',
   reader: 'border-border bg-bg-subtle text-fg-subtle',
 };
+
+/**
+ * Root is not one of plym's roles — plym sees an administrator like any other.
+ * It is the account plym Cloud's console signs in as, and its password is a
+ * machine credential the platform holds, so the chip reads as a system fact
+ * rather than as a stronger version of the accent one.
+ */
+const ROOT_STYLE = 'border-border-strong bg-bg-muted text-fg';
+const ROOT_TITLE = 'The account the plym Cloud console signs in as.';
 
 type Tab = 'active' | 'deactivated';
 const TABS: { value: Tab; label: string }[] = [
@@ -38,6 +48,7 @@ export default function Users() {
   const me = useAuthStore((s) => s.user);
   // Readers and editors can view this page; only admins get management actions.
   const isAdmin = me?.role === 'administrator';
+  const rootUserId = useRootUserId();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -48,6 +59,10 @@ export default function Users() {
       .then((p) => setUsers(p.items))
       .catch((e) => toast.error(isApiError(e) ? e.message : 'Could not load users'))
       .finally(() => setLoading(false));
+    // Only this screen names accounts, so this is where the panel asks which
+    // one the console signs in as. Self-hosted blogs never answer, and the
+    // list renders exactly as it always has.
+    void loadRootUserOnce();
   }, []);
 
   const deactivatedCount = useMemo(
@@ -181,27 +196,38 @@ export default function Users() {
                 <p className="truncate text-[12.5px] text-fg-muted">{u.email}</p>
               </div>
               <span
+                title={u.id === rootUserId ? ROOT_TITLE : undefined}
                 className={cn(
                   'shrink-0 rounded-pill border px-2 py-0.5 text-[11px] font-medium capitalize',
-                  ROLE_STYLE[u.role],
+                  u.id === rootUserId ? ROOT_STYLE : ROLE_STYLE[u.role],
                 )}
               >
-                {u.role}
+                {u.id === rootUserId ? 'Root' : u.role}
               </span>
               {isAdmin && (
                 <div className="flex w-16 shrink-0 items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   {u.is_active ? (
                     <>
-                      <ConfirmButton
-                        icon={Key}
-                        label="Reset password"
-                        question={`Reset ${u.display_name}'s password? A new one is generated and copied to your clipboard.`}
-                        confirmLabel="Reset"
-                        tone="danger"
-                        stopPropagation={false}
-                        onConfirm={() => void resetPassword(u)}
-                      />
-                      {u.id !== me?.id && (
+                      {/* Root's password is the platform's break-glass copy,
+                          kept in the tenant's .env. Resetting it here would
+                          rotate the account out from under the platform and
+                          leave nobody holding a working credential. */}
+                      {u.id !== rootUserId && (
+                        <ConfirmButton
+                          icon={Key}
+                          label="Reset password"
+                          question={`Reset ${u.display_name}'s password? A new one is generated and copied to your clipboard.`}
+                          confirmLabel="Reset"
+                          tone="danger"
+                          stopPropagation={false}
+                          onConfirm={() => void resetPassword(u)}
+                        />
+                      )}
+                      {/* Same reason as the reset above: `tenant_identity`
+                          reads Root's row, so deactivating it stops the console
+                          handing out sessions at all — and the person who did it
+                          is the one who would have had to come back that way. */}
+                      {u.id !== me?.id && u.id !== rootUserId && (
                         <ConfirmButton
                           icon={Prohibit}
                           label="Deactivate"
