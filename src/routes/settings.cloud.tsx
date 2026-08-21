@@ -31,10 +31,11 @@ import { ContactFooter } from '@/components/settings/ContactFooter';
 
 /**
  * Settings on plym cloud: an editable form that touches nothing until you say
- * so. Every field is a draft in the browser; Deploy is the only thing that
- * reaches the blog, and it goes through one confirmation that spells out what
- * applying will cost. Nobody wants a colour picker that restarts a container
- * on each drag.
+ * so. Every field is a draft in the browser; Deploy is what carries them to the
+ * blog, and it goes through one confirmation that spells out what applying will
+ * cost. Nobody wants a colour picker that restarts a container on each drag.
+ *
+ * `template` is the exception, and deliberately so — see `TemplatePicker`.
  */
 export default function CloudSettings() {
   const [doc, setDoc] = useState<SettingsDocument | null>(null);
@@ -45,8 +46,10 @@ export default function CloudSettings() {
   const [deployOpen, setDeployOpen] = useState(false);
   const [active, setActive] = useState<string>('general');
 
+  // Skeletons are for the first paint only. Re-reading after something lands
+  // is a refresh, and tearing the screen down for it unmounts the panel that
+  // did the landing — its own result flashing away as it arrives.
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const next = await getSettings();
       setDoc(next);
@@ -93,8 +96,9 @@ export default function CloudSettings() {
   }, [sections, active]);
 
   const current = sections.find((s) => s.id === active) ?? sections[0];
-  // `template` isn't a form row — it has a panel of its own, because choosing
-  // one and having one installed are the same question.
+  // `template` isn't a form row and never joins the draft: its panel installs
+  // and switches in one press, because a template is the one change you make on
+  // its own and then go and look at.
   const templateField = current?.fields.find((f) => f.key === 'template');
   const plainFields = (current?.fields ?? []).filter((f) => f !== templateField);
   const dirtyPerSection = useMemo(
@@ -164,18 +168,12 @@ export default function CloudSettings() {
                   </Panel>
                 )}
 
-                {/* The catalogue *is* the control for `template`: a select of
-                    installed names beside a catalogue offering the same names
-                    was two ways to say one thing, and neither said which of
-                    them could actually be picked. */}
                 {templateField && (
                   <TemplatePicker
                     field={templateField}
                     installed={doc?.templates ?? []}
                     live={String(toInput(templateField.kind, doc?.values.template) || '')}
-                    value={String(draft.template ?? '')}
-                    onSelect={(name) => setDraft((d) => ({ ...d, template: name }))}
-                    onInstalled={() => void load()}
+                    onChanged={() => void load()}
                   />
                 )}
               </>
