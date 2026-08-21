@@ -17,6 +17,18 @@ if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function scrollIntoView() {};
 }
 
+// CodeMirror measures its own text on every view update, and jsdom's Range
+// stops short of the layout half of the API. Without these a mounted editor
+// throws from inside requestAnimationFrame, where no test can catch it.
+if (!Range.prototype.getClientRects) {
+  Range.prototype.getClientRects = function getClientRects() {
+    return Object.assign([], { item: () => null }) as unknown as DOMRectList;
+  };
+}
+if (!Range.prototype.getBoundingClientRect) {
+  Range.prototype.getBoundingClientRect = () => new DOMRect();
+}
+
 if (!window.matchMedia) {
   window.matchMedia = ((query: string) => ({
     matches: false,
