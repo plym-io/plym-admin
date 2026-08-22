@@ -6,6 +6,7 @@ import { api, call } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import { useAuthStore } from '@/store/auth';
 import { loadRootUserOnce, useRootUserId } from '@/store/cloud';
+import { CONSOLE_FORGOT_URL } from '@/lib/console';
 import type { Role, User } from '@/types';
 import { Page, PageHeader, Panel } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,11 @@ const ROLE_STYLE: Record<Role, string> = {
  */
 const ROOT_STYLE = 'border-border-strong bg-bg-muted text-fg';
 const ROOT_TITLE = 'The account the plym Cloud console signs in as.';
+const ROOT_RESET_LABEL = 'Reset password in plym Cloud';
+
+/** The row actions share one shape whether they act here or lead away. */
+const ICON_BUTTON =
+  'rounded-md p-1.5 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg';
 
 type Tab = 'active' | 'deactivated';
 const TABS: { value: Tab; label: string }[] = [
@@ -208,11 +214,23 @@ export default function Users() {
                 <div className="flex w-16 shrink-0 items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   {u.is_active ? (
                     <>
-                      {/* Root's password is the platform's break-glass copy,
-                          kept in the tenant's .env. Resetting it here would
-                          rotate the account out from under the platform and
-                          leave nobody holding a working credential. */}
-                      {u.id !== rootUserId && (
+                      {/* Root's plym password is the platform's break-glass
+                          copy, kept in the tenant's .env: rotating it from here
+                          would leave nobody holding a working credential. The
+                          key still opens the door it can open — the console
+                          account this one signs in from. */}
+                      {u.id === rootUserId ? (
+                        <a
+                          href={CONSOLE_FORGOT_URL}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          title={ROOT_RESET_LABEL}
+                          aria-label={ROOT_RESET_LABEL}
+                          className={ICON_BUTTON}
+                        >
+                          <Key size={16} />
+                        </a>
+                      ) : (
                         <ConfirmButton
                           icon={Key}
                           label="Reset password"
@@ -245,7 +263,7 @@ export default function Users() {
                       title="Reactivate"
                       aria-label="Reactivate"
                       onClick={() => void reactivate(u)}
-                      className="rounded-md p-1.5 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg"
+                      className={ICON_BUTTON}
                     >
                       <ArrowCounterClockwise size={16} />
                     </button>
