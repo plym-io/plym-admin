@@ -4,8 +4,7 @@ import { ArrowRight } from '@phosphor-icons/react';
 import { redeemHandoff, type CloudError } from '@/api/cloud';
 import { isApiError } from '@/api/errors';
 import { useAuthStore } from '@/store/auth';
-
-const CONSOLE_URL = 'https://cloud.plym.io';
+import { CONSOLE_URL } from '@/lib/console';
 
 /**
  * Where the visitor goes when the handoff cannot finish: back to the console

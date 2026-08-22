@@ -84,6 +84,21 @@ describe('a gateway that names Root', () => {
     ).toBeInTheDocument();
   });
 
+  it('sends Root to the console that owns its sign-in instead', async () => {
+    await openUsers({ root: true });
+
+    const link = within(rowOf('Administrator')).getByRole('link', {
+      name: 'Reset password in plym Cloud',
+    });
+    expect(link).toHaveAttribute('href', 'https://cloud.plym.io/forgot');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+    // Everyone else resets in place, so the console link is Root's alone.
+    expect(
+      within(rowOf('Sam Rivera')).queryByRole('link', { name: /plym Cloud/ }),
+    ).toBeNull();
+  });
+
   it('will not let an administrator deactivate the account the console arrives on', async () => {
     await openUsers({ root: true });
 

@@ -18,6 +18,7 @@ import { McpIcon } from '@/components/ui/mcp-icon';
 import type { UiIcon } from '@/components/ui/icon';
 import { capabilityOn, useCloudStore } from '@/store/cloud';
 import { useAuthStore } from '@/store/auth';
+import { CONSOLE_URL } from '@/lib/console';
 import type { Capabilities } from '@/types/cloud';
 
 export interface NavItem {
@@ -145,7 +146,7 @@ export const NAV: NavGroup[] = [
       // account lives in the cloud console. A self-hosted blog has no
       // subscription at all, so it doesn't get the link.
       {
-        to: 'https://cloud.plym.io',
+        to: CONSOLE_URL,
         label: 'Subscription',
         icon: CreditCard,
         keywords: 'billing plan invoice payment upgrade',
