@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- The mark the panel already wears in the sidebar. SVG first so it stays
+         sharp at every tab size; the webp is the fallback for anything that
+         won't take one. Both are root-absolute on purpose — vite rewrites them
+         against the build's base, which the admin mount resolves. -->
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="alternate icon" type="image/webp" href="/favicon.webp" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <!-- Archivo/Space Grotesk are the admin's UI faces. The editor has two
+         and only two: Merriweather for prose, Google Sans Code for markdown
+         source and code. All four ship with the bundle rather than loading
+         from Google's CDN — the panel's CSP allows fonts and stylesheets from
+         'self' only, so a linked one never arrives. See scripts/vendor-fonts.mjs. -->
+    <title>plym - Admin</title>
+    <!-- Theme before first paint. The store reaches the same answer a moment
+         later, but a module bundle is far too late to decide the background
+         colour — without this the panel flashes light on every load. -->
+    <script>
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('plym.theme') || 'null');
+          var pref = (saved && saved.state && saved.state.preference) || 'system';
+          var dark =
+            pref === 'dark' ||
+            (pref === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

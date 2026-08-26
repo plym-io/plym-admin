@@ -1,0 +1,423 @@
+@import 'tailwindcss';
+
+/* The four faces named in --font-* below, self-hosted. They cannot be linked
+   from Google's CDN: the panel is served under a CSP of style-src 'self' /
+   font-src 'self', which blocks that stylesheet and its woff2 outright.
+   Generated — see scripts/vendor-fonts.mjs. */
+@import './fonts.css';
+
+/* ------------------------------------------------------------------ *
+ * plym design tokens.
+ *
+ * Two layers on purpose. The palette below (`--p-*`) is the only place a
+ * literal colour is written, and it is swapped wholesale by the theme; the
+ * `@theme` block underneath names those swatches semantically and is what
+ * every utility class resolves against. So `bg-bg` is "the surface colour",
+ * not "white", and dark mode is a palette swap rather than a second set of
+ * classes on every element.
+ * ------------------------------------------------------------------ */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Chrome and content sit on different planes: canvas is the recessed
+     field behind the work, surface is the panel the work is drawn on. */
+  --p-canvas: #f4f6f8;
+  --p-surface: #ffffff;
+  --p-subtle: #f7f8fa;
+  --p-muted: #eceef2;
+  --p-border: #e2e5ea;
+  --p-border-strong: #c7ccd4;
+  --p-fg: #12161c;
+  --p-fg-muted: #59626e;
+  --p-fg-subtle: #8a929d;
+  --p-accent: #f43d02;
+  --p-accent-fg: #ffffff;
+  --p-accent-soft: rgba(244, 61, 2, 0.1);
+  --p-accent-ring: rgba(244, 61, 2, 0.28);
+  --p-success: #1f7a41;
+  --p-warning: #b3720d;
+  --p-danger: #c4321a;
+
+  --p-shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --p-shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.07), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --p-shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 2px 4px rgba(16, 24, 40, 0.04);
+  --p-shadow-lg: 0 16px 40px rgba(16, 24, 40, 0.12), 0 4px 8px rgba(16, 24, 40, 0.06);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --p-canvas: #0c1016;
+  --p-surface: #14191f;
+  --p-subtle: #1a2028;
+  --p-muted: #222933;
+  --p-border: #262e39;
+  --p-border-strong: #3b4551;
+  --p-fg: #e7eaee;
+  --p-fg-muted: #9aa4b1;
+  --p-fg-subtle: #6d7783;
+  /* Nudged up in lightness: the print orange is legible on white but sits
+     too close to the background once the background is nearly black. */
+  --p-accent: #ff5c26;
+  --p-accent-fg: #1a0a03;
+  --p-accent-soft: rgba(255, 92, 38, 0.16);
+  --p-accent-ring: rgba(255, 92, 38, 0.36);
+  --p-success: #3fb96b;
+  --p-warning: #e0a33a;
+  --p-danger: #f2694f;
+
+  --p-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --p-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --p-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.55), 0 2px 4px rgba(0, 0, 0, 0.4);
+  --p-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.65), 0 4px 8px rgba(0, 0, 0, 0.45);
+}
+
+@theme {
+  --color-canvas: var(--p-canvas);
+  --color-bg: var(--p-surface);
+  --color-bg-subtle: var(--p-subtle);
+  --color-bg-muted: var(--p-muted);
+  --color-border: var(--p-border);
+  --color-border-strong: var(--p-border-strong);
+  --color-fg: var(--p-fg);
+  --color-fg-muted: var(--p-fg-muted);
+  --color-fg-subtle: var(--p-fg-subtle);
+  --color-accent: var(--p-accent);
+  --color-accent-fg: var(--p-accent-fg);
+  --color-accent-soft: var(--p-accent-soft);
+
+  --color-success: var(--p-success);
+  --color-warning: var(--p-warning);
+  --color-danger: var(--p-danger);
+
+  --font-sans: 'Archivo', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', 'Archivo', sans-serif;
+  --font-mono: 'Google Sans Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The writing surface. Title, excerpt and prose all share it; markdown mode
+     and code switch to the mono above, and that's the whole type system in
+     the editor — two faces. */
+  --font-editor: 'Merriweather', Georgia, 'Iowan Old Style', serif;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+
+  --shadow-xs: var(--p-shadow-xs);
+  --shadow-sm: var(--p-shadow-sm);
+  --shadow-md: var(--p-shadow-md);
+  --shadow-lg: var(--p-shadow-lg);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --default-transition-duration: 220ms;
+  --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background: var(--color-canvas);
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-canvas);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-fg);
+  }
+
+  /* Custom focus ring — accent, never the UA default. */
+  :focus-visible {
+    outline: 2px solid var(--p-accent-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Tabular numerals helper for meta columns. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  /* No scrollbars anywhere — everything still scrolls, the track just isn't
+     drawn over the writing. */
+  * {
+    scrollbar-width: none;
+  }
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Editorial preview — mirrors plym's rendered blog typography.
+ * Used by the editor preview pane when the live HTML isn't styled.
+ * ------------------------------------------------------------------ */
+.prose-plym {
+  font-family: var(--font-sans);
+  color: var(--color-fg);
+  line-height: 1.75;
+  font-size: 17px;
+}
+.prose-plym h1,
+.prose-plym h2,
+.prose-plym h3,
+.prose-plym h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  margin: 1.6em 0 0.5em;
+  color: var(--color-fg);
+}
+.prose-plym h1 {
+  font-size: 2em;
+}
+.prose-plym h2 {
+  font-size: 1.5em;
+}
+.prose-plym h3 {
+  font-size: 1.2em;
+}
+.prose-plym p,
+.prose-plym ul,
+.prose-plym ol,
+.prose-plym blockquote {
+  margin: 0 0 1em;
+}
+.prose-plym a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-plym img {
+  max-width: 100%;
+  border-radius: var(--radius-lg);
+  margin: 1.5em 0;
+}
+.prose-plym blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 1em;
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+.prose-plym code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--color-bg-muted);
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-sm);
+}
+.prose-plym pre {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--color-bg-muted);
+  padding: 1em 1.2em;
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  line-height: 1.6;
+}
+.prose-plym pre code {
+  background: none;
+  padding: 0;
+}
+.prose-plym ul,
+.prose-plym ol {
+  padding-left: 1.4em;
+}
+.prose-plym hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 2em 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Editor tables — the grid that stands in for a markdown pipe table.
+ * Plain CSS on purpose: this markup is built by a CodeMirror widget, not
+ * by React, so it can't use utility classes.
+ * ------------------------------------------------------------------ */
+.cm-md-table-wrap {
+  margin: 0.8em 0;
+  font-family: var(--font-editor);
+  font-size: 0.92em;
+}
+.cm-md-table-el {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+.cm-md-table-el th,
+.cm-md-table-el td {
+  position: relative;
+  border: 1px solid var(--color-border);
+  padding: 0;
+  vertical-align: middle;
+}
+.cm-md-table-el th {
+  background: var(--color-bg-muted);
+  font-weight: 600;
+}
+.cm-md-tcell {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 0.45em 0.6em;
+  font: inherit;
+  color: inherit;
+}
+.cm-md-tcell:focus {
+  background: var(--color-bg-subtle);
+  box-shadow: inset 0 0 0 2px var(--color-border-strong);
+}
+.cm-md-tcell::placeholder {
+  color: var(--color-fg-subtle);
+}
+
+/* Controls: out of the way until the table is hovered. */
+.cm-md-tbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  width: 18px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-fg-subtle);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cm-md-tbtn:hover {
+  background: var(--color-border);
+  color: var(--color-fg);
+}
+.cm-md-tcol-del {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  opacity: 0;
+}
+.cm-md-table-el th:hover .cm-md-tcol-del,
+.cm-md-tcol-del:focus-visible {
+  opacity: 1;
+}
+.cm-md-tadd-col,
+.cm-md-trow-ctl {
+  width: 26px;
+  border: 0 !important;
+  background: transparent !important;
+  text-align: center;
+}
+.cm-md-tadd-col .cm-md-tbtn,
+.cm-md-trow-ctl .cm-md-tbtn {
+  margin: 0 auto;
+  opacity: 0;
+}
+.cm-md-table-wrap:hover .cm-md-tadd-col .cm-md-tbtn,
+.cm-md-table-el tr:hover .cm-md-trow-ctl .cm-md-tbtn {
+  opacity: 1;
+}
+.cm-md-tadd-row {
+  margin-top: 4px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-fg-subtle);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+}
+.cm-md-table-wrap:hover .cm-md-tadd-row {
+  opacity: 1;
+}
+.cm-md-tadd-row:hover {
+  background: var(--color-bg-muted);
+  color: var(--color-fg);
+}
+
+/* ------------------------------------------------------------------ *
+ * Editor galleries — the strip that stands in for a ```gallery fence.
+ * Plain CSS for the same reason as the tables above: this markup comes
+ * from a CodeMirror widget, which has no utility classes to reach for.
+ * ------------------------------------------------------------------ */
+.cm-md-gallery {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0.5em 0;
+}
+.cm-md-gallery img {
+  height: 104px;
+  width: auto;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-muted);
+  object-fit: cover;
+}
+
+@keyframes plym-shake {
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+  20%,
+  80% {
+    transform: translateX(2px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-4px);
+  }
+  40%,
+  60% {
+    transform: translateX(4px);
+  }
+}
+.animate-shake {
+  animation: plym-shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes plym-ring-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-accent-soft);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(244, 61, 2, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 61, 2, 0);
+  }
+}
+.animate-ring-pulse {
+  animation: plym-ring-pulse 1s var(--ease-out) 1;
+}

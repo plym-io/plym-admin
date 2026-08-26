@@ -1,0 +1,8 @@
+node_modules
+dist
+dist.tar.gz
+*.local
+.DS_Store
+.vite
+.claude/
+*.tsbuildinfo
