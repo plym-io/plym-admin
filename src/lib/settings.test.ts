@@ -4,7 +4,7 @@ import {
   displayValue,
   flatten,
   groupSchema,
-  hasOwnScreen,
+  hasOwnControl,
   sectionsFor,
   initialDraft,
   normalizePlan,
@@ -241,11 +241,21 @@ describe('sectionsFor', () => {
   });
 });
 
-describe('hasOwnScreen', () => {
+describe('hasOwnControl', () => {
   it('claims the mcp keys and nothing that merely looks like them', () => {
-    expect(hasOwnScreen('mcp')).toBe(true);
-    expect(hasOwnScreen('mcp.enabled')).toBe(true);
-    expect(hasOwnScreen('mcp_endpoint')).toBe(false);
-    expect(hasOwnScreen('name')).toBe(false);
+    expect(hasOwnControl('mcp')).toBe(true);
+    expect(hasOwnControl('mcp.enabled')).toBe(true);
+    expect(hasOwnControl('mcp_endpoint')).toBe(false);
+    expect(hasOwnControl('name')).toBe(false);
+  });
+
+  it('claims the links tree, which its own panel renders', () => {
+    expect(hasOwnControl('links.header')).toBe(true);
+    expect(hasOwnControl('links.footer')).toBe(true);
+  });
+
+  it('keeps a claimed key out of every section', () => {
+    const sections = sectionsFor([{ key: 'name' }, { key: 'links.header' }]);
+    expect(sections.flatMap((s) => s.fields.map((f) => f.key))).toEqual(['name']);
   });
 });

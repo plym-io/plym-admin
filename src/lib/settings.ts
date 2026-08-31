@@ -331,16 +331,18 @@ export const SECTIONS: SectionSpec[] = [
 ];
 
 /**
- * Roots the settings screen deliberately doesn't render, because something else
- * owns them. `mcp` has its own item in the sidebar, where the switch starts and
- * stops a container and shows the operation as it runs — a second copy under
- * Advanced would be a quieter way to do the same thing, and the two would
- * disagree the moment either was used.
+ * Roots the settings screen deliberately doesn't render as rows, because a
+ * purpose-built control owns them. `mcp` has its own item in the sidebar, where
+ * the switch starts and stops a container and shows the operation as it runs —
+ * a second copy under Advanced would be a quieter way to do the same thing, and
+ * the two would disagree the moment either was used. `links` is a tree, and a
+ * tree read out as one line of JSON is not a value anyone can check, let alone
+ * edit; its own panel under Advanced renders and builds it.
  */
-const OWNED_ELSEWHERE = ['mcp'];
+const OWNED_ELSEWHERE = ['mcp', 'links'];
 
-/** True for a key some other screen is responsible for. */
-export function hasOwnScreen(key: string): boolean {
+/** True for a key that has a control of its own somewhere. */
+export function hasOwnControl(key: string): boolean {
   const dot = key.indexOf('.');
   return OWNED_ELSEWHERE.includes(dot === -1 ? key : key.slice(0, dot));
 }
@@ -370,7 +372,7 @@ export interface Section<T> {
 export function sectionsFor<T extends { key: string }>(fields: T[]): Section<T>[] {
   const buckets = new Map<string, T[]>();
   for (const field of fields) {
-    if (hasOwnScreen(field.key)) continue;
+    if (hasOwnControl(field.key)) continue;
     const section = sectionFor(field.key);
     const bucket = buckets.get(section.id);
     if (bucket) bucket.push(field);
