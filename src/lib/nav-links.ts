@@ -1,14 +1,12 @@
 /**
- * The `links:` block of config.yaml — the header and footer navigation a blog
- * renders — in the two shapes it needs: the tree the builder edits, and the
- * YAML the file wants back.
+ * The header and footer navigation a blog renders, as the Configure dialog
+ * holds it while it is being worked on.
  *
  * plym's own model is the contract mirrored here: every link carries a label
  * and then *either* a destination *or* a submenu, never both and never
- * neither, and a submenu is one level deep. A blog whose config breaks that
- * rule does not boot, so everything below exists to hold a tree that is still
- * half-typed and to name the row that isn't finished yet — rather than to hand
- * back YAML that would take the blog down.
+ * neither, and a submenu is one level deep. Everything below exists to read
+ * that tree out of `GET /api/config`, hold it while it is half-typed, and name
+ * the row that isn't finished yet.
  */
 
 export type NavSlot = 'header' | 'footer';
@@ -23,15 +21,6 @@ export const NAV_SLOT_LABEL: Record<NavSlot, string> = {
   header: 'Header',
   footer: 'Footer',
 };
-
-/** A link as config.yaml carries it. */
-export interface NavLink {
-  text: string;
-  url?: string;
-  children?: NavLink[];
-}
-
-export type NavLinks = Record<NavSlot, NavLink[]>;
 
 /** Which of the two things a row is, as the Link/Menu toggle sets it. */
 export type NavKind = 'link' | 'menu';
@@ -107,14 +96,6 @@ export function readDrafts(links: unknown): NavDrafts {
 /** True for a row that opens a menu rather than going somewhere. */
 export function isMenu(item: NavDraft): boolean {
   return item.kind === 'menu';
-}
-
-export function toLinks(items: NavDraft[]): NavLink[] {
-  return items.map((item) =>
-    isMenu(item)
-      ? { text: item.text.trim(), children: toLinks(item.children) }
-      : { text: item.text.trim(), url: item.url.trim() },
-  );
 }
 
 /* ── editing ──────────────────────────────────────────────────────────── */
@@ -200,11 +181,9 @@ export type NavFault = 'text' | 'url' | 'menu' | 'duplicate';
 /**
  * What is wrong with one row, given the rows it sits beside.
  *
- * `duplicate` is a consequence of the file's shape rather than of the link:
- * a label is the mapping key it will be written as, so two siblings sharing
- * one label are one entry by the time YAML is read back, and the second
- * quietly wins. Catching it here is the difference between a link that
- * disappears and a link that is reported.
+ * `duplicate` is a consequence of the config's shape rather than of the link:
+ * a navigation is a block keyed by name, so two siblings sharing one label
+ * cannot both exist — one of them is the entry, and the other is gone.
  */
 export function faultOf(item: NavDraft, siblings: NavDraft[] = []): NavFault | null {
   const label = item.text.trim();
@@ -212,74 +191,4 @@ export function faultOf(item: NavDraft, siblings: NavDraft[] = []): NavFault | n
   if (siblings.some((s) => s !== item && s.text.trim() === label)) return 'duplicate';
   if (isMenu(item)) return item.children.length ? null : 'menu';
   return item.url.trim() ? null : 'url';
-}
-
-/**
- * Only what the block will actually carry. A row switched back to Link keeps
- * the children it had, so the toggle is reversible — but they are not written,
- * and half-typed rows nobody can see must not be what withholds the block.
- */
-export function faultCount(items: NavDraft[]): number {
-  return items.reduce(
-    (n, item) =>
-      n +
-      (faultOf(item, items) ? 1 : 0) +
-      (isMenu(item) ? faultCount(item.children) : 0),
-    0,
-  );
-}
-
-/* ── back to config.yaml ──────────────────────────────────────────────── */
-
-const INDICATORS = new Set(Array.from('-?:,[]{}#&*!|>\'"%@`'));
-const NOT_A_STRING = /^(?:true|false|null|yes|no|on|off|y|n|~)$/i;
-
-/**
- * A string as YAML will read it back — used for both halves of `Name: url`,
- * because a label is a mapping key now and a key is exactly as quotable as a
- * value. Plain wherever plain is unambiguous, so the block looks like the one
- * in the docs; double-quoted the moment it isn't, because plym rejects a name
- * YAML handed it as a boolean or a number ("quote it, so yaml reads 'on' or
- * '2026' as a label"). JSON's escaping is a subset of YAML's, so
- * `JSON.stringify` is the correct quoted form.
- */
-export function yamlScalar(value: string): string {
-  const plain =
-    value !== '' &&
-    value === value.trim() &&
-    !INDICATORS.has(value[0]) &&
-    !/[\u0000-\u001f\u007f]/.test(value) &&
-    !value.includes(': ') &&
-    !value.endsWith(':') &&
-    !value.includes(' #') &&
-    !NOT_A_STRING.test(value) &&
-    Number.isNaN(Number(value));
-  return plain ? value : JSON.stringify(value);
-}
-
-/**
- * A navigation as named blocks: `Name: url`, or a name carrying its own block.
- * plym reads the mapping in written order and rejects the `- text:/url:` list
- * outright, so the order of these lines is the order of the menu.
- */
-function block(items: NavLink[], indent: number): string[] {
-  const pad = ' '.repeat(indent);
-  return items.flatMap((link) => {
-    const name = `${pad}${yamlScalar(link.text)}:`;
-    return link.children?.length
-      ? [name, ...block(link.children, indent + 2)]
-      : [`${name} ${yamlScalar(link.url ?? '')}`];
-  });
-}
-
-export function toYaml(links: NavLinks): string {
-  const lines = ['links:'];
-  for (const slot of NAV_SLOTS) {
-    const items = links[slot];
-    // An empty mapping rather than nothing at all: pasting the block has to be
-    // able to clear a navigation, not just replace one.
-    if (!items.length) lines.push(`  ${slot}: {}`);
-    else lines.push(`  ${slot}:`, ...block(items, 4));
-  }
-  return lines.join('\n');
 }

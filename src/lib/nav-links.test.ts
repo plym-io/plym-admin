@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   addChild,
   editAt,
-  faultCount,
   faultOf,
   isMenu,
   moveAt,
@@ -11,9 +10,6 @@ import {
   readDrafts,
   removeAt,
   setKind,
-  toLinks,
-  toYaml,
-  yamlScalar,
   type NavDraft,
 } from './nav-links';
 
@@ -65,21 +61,6 @@ describe('readDrafts', () => {
       header: [{ text: 'A', children: [{ text: 'B', children: [{ text: 'C', url: '/c' }] }] }],
     });
     expect(drafts.header[0].children[0].children).toEqual([]);
-  });
-});
-
-describe('toLinks', () => {
-  it('trims what it writes', () => {
-    expect(toLinks([draft('  Home  ', '  /  ')])).toEqual([{ text: 'Home', url: '/' }]);
-  });
-
-  it('leaves a menu without a url, however much one was typed first', () => {
-    // The url is kept in the draft so undoing the nesting gets it back; it is
-    // config.yaml that must never see both.
-    const menu = draft('Resources', '/resources', [draft('Docs', '/docs')]);
-    expect(toLinks([menu])).toEqual([
-      { text: 'Resources', children: [{ text: 'Docs', url: '/docs' }] },
-    ]);
   });
 });
 
@@ -158,15 +139,15 @@ describe('setKind', () => {
   it('gives the typed address back when a menu becomes a link again', () => {
     const menu = draft('Resources', '/resources', [draft('Docs', '/docs')]);
     const [back] = setKind([menu], 0, 'link');
-    expect(toLinks([back])).toEqual([{ text: 'Resources', url: '/resources' }]);
+    expect(isMenu(back)).toBe(false);
+    expect(back.url).toBe('/resources');
   });
 
   it('keeps the children it had, so the toggle is reversible', () => {
     const menu = draft('Resources', '/resources', [draft('Docs', '/docs')]);
-    const there = setKind(setKind([menu], 0, 'link'), 0, 'menu');
-    expect(toLinks(there)).toEqual([
-      { text: 'Resources', children: [{ text: 'Docs', url: '/docs' }] },
-    ]);
+    const [there] = setKind(setKind([menu], 0, 'link'), 0, 'menu');
+    expect(isMenu(there)).toBe(true);
+    expect(there.children.map((c) => c.text)).toEqual(['Docs']);
   });
 });
 
@@ -183,119 +164,22 @@ describe('faults', () => {
     expect(faultOf(draft('Resources', '', [draft('Docs', '/docs')]))).toBeNull();
   });
 
-  it('counts children too', () => {
-    expect(faultCount([draft('Resources', '', [draft('', ''), draft('Docs', '/docs')])])).toBe(1);
-  });
-
-  it('ignores the children of a row switched back to a link', () => {
-    // They are kept so the toggle can be undone, but they are not written, so
-    // a half-typed one nobody can see must not withhold the block.
-    const menu = draft('Resources', '/resources', [draft('', '')]);
-    expect(faultCount(setKind([menu], 0, 'link'))).toBe(0);
-  });
-
   it('catches two links in one block sharing a label', () => {
-    // The label is the mapping key, so the second would silently replace the
-    // first the moment YAML read the file back.
+    // A navigation is a block keyed by name, so these two cannot both exist.
     const clash = [draft('Docs', '/docs'), draft('Docs', '/documentation')];
+    expect(faultOf(clash[0], clash)).toBe('duplicate');
     expect(faultOf(clash[1], clash)).toBe('duplicate');
-    expect(faultCount(clash)).toBe(2);
   });
 
   it('lets two menus each have a link of the same name', () => {
-    const tree = [
-      draft('Product', '', [draft('Docs', '/p/docs')]),
-      draft('Company', '', [draft('Docs', '/c/docs')]),
-    ];
-    expect(faultCount(tree)).toBe(0);
+    const a = [draft('Docs', '/p/docs')];
+    const b = [draft('Docs', '/c/docs')];
+    expect(faultOf(a[0], a)).toBeNull();
+    expect(faultOf(b[0], b)).toBeNull();
   });
 
-  it('compares labels as they will be written, not as they were typed', () => {
+  it('compares labels trimmed, as the config would key them', () => {
     const clash = [draft('Docs', '/docs'), draft('  Docs  ', '/documentation')];
     expect(faultOf(clash[1], clash)).toBe('duplicate');
-  });
-});
-
-describe('yamlScalar', () => {
-  it('leaves ordinary labels and urls plain', () => {
-    for (const v of ['Home', '/', '/about', 'https://plym.io/docs/', "What's new"]) {
-      expect(yamlScalar(v)).toBe(v);
-    }
-  });
-
-  it('quotes anything YAML would read back as something other than a string', () => {
-    // A label of "No" loaded as a boolean fails plym's `text: str` and the
-    // blog does not start.
-    expect(yamlScalar('No')).toBe('"No"');
-    expect(yamlScalar('2026')).toBe('"2026"');
-    expect(yamlScalar('~')).toBe('"~"');
-  });
-
-  it('quotes anything that would end the scalar early', () => {
-    expect(yamlScalar('Pricing # and plans')).toBe('"Pricing # and plans"');
-    expect(yamlScalar('Docs: the manual')).toBe('"Docs: the manual"');
-    expect(yamlScalar('- Home')).toBe('"- Home"');
-    expect(yamlScalar(' Home')).toBe('" Home"');
-    expect(yamlScalar('')).toBe('""');
-  });
-
-  it('escapes a quote it has to open the scalar with', () => {
-    // A quote inside a plain scalar is just a character; only a leading one
-    // opens a quoted scalar. Checked against PyYAML, which is what plym loads
-    // config.yaml with.
-    expect(yamlScalar('The "good" parts')).toBe('The "good" parts');
-    expect(yamlScalar('"Best of" list')).toBe('"\\"Best of\\" list"');
-  });
-});
-
-describe('toYaml', () => {
-  it('writes the named blocks exactly as config.yaml documents them', () => {
-    const yaml = toYaml({
-      header: [
-        { text: 'Home', url: '/' },
-        {
-          text: 'Resources',
-          children: [
-            { text: 'Docs', url: 'https://plym.io/docs/' },
-            { text: 'Templates', url: 'https://plym.io/templates' },
-          ],
-        },
-      ],
-      footer: [
-        {
-          text: 'Open Source',
-          children: [{ text: 'GitHub', url: 'https://github.com/plym-io/plym' }],
-        },
-        { text: 'About', url: '/about' },
-      ],
-    });
-    expect(yaml).toBe(
-      [
-        'links:',
-        '  header:',
-        '    Home: /',
-        '    Resources:',
-        '      Docs: https://plym.io/docs/',
-        '      Templates: https://plym.io/templates',
-        '  footer:',
-        '    Open Source:',
-        '      GitHub: https://github.com/plym-io/plym',
-        '    About: /about',
-      ].join('\n'),
-    );
-  });
-
-  it('never writes the list form, which plym rejects outright', () => {
-    expect(toYaml({ header: [{ text: 'Home', url: '/' }], footer: [] })).not.toContain('- text:');
-  });
-
-  it('quotes a name YAML would hand plym as something other than text', () => {
-    // plym's own message: "quote it, so yaml reads 'on' or '2026' as a label".
-    const yaml = toYaml({ header: [{ text: 'On', url: '/on' }], footer: [] });
-    expect(yaml).toContain('    "On": /on');
-  });
-
-  it('says an empty slot out loud, so pasting it clears the old one', () => {
-    expect(toYaml({ header: [], footer: [] })).toBe('links:\n  header: {}\n  footer: {}');
   });
 });

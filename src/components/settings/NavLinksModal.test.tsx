@@ -1,31 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NavLinksModal } from './NavLinksModal';
 
 /**
- * The builder's job is to be the thing that cannot produce a config.yaml the
- * blog refuses to load. What is asserted here is the part the pure model can't
- * reach on its own: that a half-written row withholds the block rather than
- * handing it over, and that the dialog opens on what the server serves.
- *
- * The block is not on screen any more, so what the Copy button puts on the
- * clipboard is the only place the builder's output shows up — which makes the
- * clipboard the right thing to assert against.
+ * What is asserted here is the part the pure model can't reach on its own: that
+ * the dialog opens on what the server serves, that each control edits the row
+ * it names, and that a row which could not be configured says so on the row.
  */
-
-const copied = vi.hoisted(() => ({ text: null as string | null }));
-
-vi.mock('@/lib/clipboard', () => ({
-  copyText: async (text: string) => {
-    copied.text = text;
-    return true;
-  },
-}));
-
-beforeEach(() => {
-  copied.text = null;
-});
 
 /** Exactly the document `GET /api/config` serves, normalised list and all. */
 const LINKS = {
@@ -61,40 +43,21 @@ function open(links: unknown = LINKS) {
   return render(<NavLinksModal open onClose={() => {}} links={links} />);
 }
 
-const copyButton = () => screen.getByRole('button', { name: /Copy config\.yaml|Copied/ });
-
-/** What the Copy button would put on the clipboard, or null if it refuses. */
-async function yaml(user: ReturnType<typeof userEvent.setup>): Promise<string | null> {
-  const button = copyButton();
-  if (button.hasAttribute('disabled')) return null;
-  await user.click(button);
-  return copied.text;
-}
+const hints = (pattern: RegExp) => screen.queryAllByText(pattern);
 
 describe('NavLinksModal', () => {
-  it('opens on the links the blog is serving', async () => {
-    const user = userEvent.setup();
+  it('opens on the links the blog is serving', () => {
     open();
     expect(screen.getByLabelText('Link 1 label')).toHaveValue('Home');
     expect(screen.getByLabelText('Link 1 address')).toHaveValue('/');
     expect(screen.getByLabelText('Link 2 sub-link 1 label')).toHaveValue('Docs');
-    expect(await yaml(user)).toContain('    Home: /');
   });
 
-  it('shows no config.yaml block, only the button that copies one', () => {
+  it('says nothing about config.yaml, which this screen does not write', () => {
     open();
     expect(document.querySelector('pre')).toBeNull();
-    expect(copyButton()).toBeEnabled();
-  });
-
-  it('confirms on the button itself that the copy happened', async () => {
-    const user = userEvent.setup();
-    open();
-    await user.click(copyButton());
-    expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument();
-    // A further edit makes the copy stale, so the confirmation has to go.
-    await user.type(screen.getByLabelText('Link 1 label'), '!');
-    expect(screen.getByRole('button', { name: 'Copy config.yaml' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Copy/ })).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('plym rebuild');
   });
 
   it('shows a menu row as a menu rather than as an empty address', () => {
@@ -113,24 +76,18 @@ describe('NavLinksModal', () => {
     expect(screen.getByText(/Powered by plym/)).toBeInTheDocument();
   });
 
-  it('withholds the block while a row is unfinished', async () => {
+  it('says on the row itself what a new one still needs', async () => {
     const user = userEvent.setup();
     open();
     await user.click(screen.getByRole('button', { name: /Add another link/ }));
-    expect(await yaml(user)).toBeNull();
-    expect(screen.getByText(/One link needs fixing/)).toBeInTheDocument();
+    expect(hints(/Give this one a label/)).toHaveLength(1);
 
     await user.type(screen.getByLabelText('Link 3 label'), 'Pricing');
-    await user.type(screen.getByLabelText('Link 3 address'), '/pricing');
-    expect(await yaml(user)).toContain('    Pricing: /pricing');
-  });
+    expect(hints(/Give this one a label/)).toHaveLength(0);
+    expect(hints(/Add where it goes/)).toHaveLength(1);
 
-  it('will not write a label YAML would read back as something else', async () => {
-    const user = userEvent.setup();
-    open();
-    await user.clear(screen.getByLabelText('Link 1 label'));
-    await user.type(screen.getByLabelText('Link 1 label'), '2026');
-    expect(await yaml(user)).toContain('    "2026": /');
+    await user.type(screen.getByLabelText('Link 3 address'), '/pricing');
+    expect(hints(/Add where it goes/)).toHaveLength(0);
   });
 
   it('turns a link into a menu with the toggle, and back into the link it was', async () => {
@@ -170,12 +127,10 @@ describe('NavLinksModal', () => {
     const user = userEvent.setup();
     open();
     await user.click(screen.getByRole('tab', { name: /Footer/ }));
+    // A titled column, and beside it the ungrouped link that keeps its own row.
+    expect(screen.getByLabelText('Link 1 label')).toHaveValue('Open Source');
     expect(screen.getByLabelText('Link 1 sub-link 2 label')).toHaveValue('License');
-    const block = await yaml(user);
-    expect(block).toContain('    Open Source:');
-    expect(block).toContain('      GitHub: https://github.com/plym-io/plym');
-    // The ungrouped one keeps its own row beneath the columns.
-    expect(block).toContain('    About: /about');
+    expect(screen.getByLabelText('Link 2 address')).toHaveValue('/about');
   });
 
   it('says so when two links in one block would collapse into one', async () => {
@@ -183,14 +138,12 @@ describe('NavLinksModal', () => {
     open();
     await user.clear(screen.getByLabelText('Link 1 label'));
     await user.type(screen.getByLabelText('Link 1 label'), 'Resources');
-    expect(screen.getAllByText(/Another link here has this label/)).toHaveLength(2);
-    expect(await yaml(user)).toBeNull();
+    expect(hints(/Another link here has this label/)).toHaveLength(2);
   });
 
-  it('offers a blog with no links an empty list rather than a blank form', async () => {
-    const user = userEvent.setup();
+  it('offers a blog with no links an empty list rather than a blank form', () => {
     open(null);
     expect(screen.getByText(/Nothing in the header yet/)).toBeInTheDocument();
-    expect(await yaml(user)).toBe('links:\n  header: {}\n  footer: {}');
+    expect(screen.queryByLabelText('Link 1 label')).not.toBeInTheDocument();
   });
 });
