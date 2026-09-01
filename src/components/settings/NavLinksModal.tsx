@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowElbowDownRight, DotsSixVertical, ListDashes, Plus, Trash } from '@phosphor-icons/react';
+import {
+  ArrowElbowDownRight,
+  Check,
+  Copy,
+  DotsSixVertical,
+  ListDashes,
+  Plus,
+  Trash,
+} from '@phosphor-icons/react';
 import {
   NAV_SLOTS,
   NAV_SLOT_LABEL,
@@ -24,10 +32,10 @@ import {
   type NavSlot,
 } from '@/lib/nav-links';
 import { cn } from '@/lib/classnames';
+import { copyText } from '@/lib/clipboard';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Snippet } from '@/components/cloud/Snippet';
 
 /**
  * Placeholders that spell out the two shapes a row can take, rather than
@@ -282,8 +290,9 @@ export function NavLinksModal({ open, onClose, links }: Props) {
   const [slot, setSlot] = useState<NavSlot>('header');
   const [dragging, setDragging] = useState<NavPath | null>(null);
   const [over, setOver] = useState<NavPath | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  // Opening is what seeds the form. Editing and then closing without pasting
+  // Opening is what seeds the form. Editing and then closing without copying
   // has to leave nothing behind — the blog is unchanged, so the next open
   // must show the blog, not the abandoned draft.
   useEffect(() => {
@@ -292,6 +301,7 @@ export function NavLinksModal({ open, onClose, links }: Props) {
     setSlot('header');
     setDragging(null);
     setOver(null);
+    setCopied(false);
   }, [open, links]);
 
   const items = drafts[slot];
@@ -301,8 +311,15 @@ export function NavLinksModal({ open, onClose, links }: Props) {
     [drafts],
   );
 
-  const apply = (fn: (list: NavDraft[]) => NavDraft[]) =>
+  const apply = (fn: (list: NavDraft[]) => NavDraft[]) => {
+    setCopied(false);
     setDrafts((d) => ({ ...d, [slot]: fn(d[slot]) }));
+  };
+
+  const copy = async () => {
+    if (!(await copyText(yaml))) return;
+    setCopied(true);
+  };
 
   const drop = (to: NavPath) => {
     const from = dragging;
@@ -331,8 +348,8 @@ export function NavLinksModal({ open, onClose, links }: Props) {
             Header &amp; footer links
           </h2>
           <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
-            Build the navigation, then paste the block into <code>config.yaml</code>. Drag a
-            row by its handle to reorder it.
+            Build the navigation, then copy it into <code>config.yaml</code>. Drag a row by
+            its handle to reorder it.
           </p>
         </div>
 
@@ -429,32 +446,23 @@ export function NavLinksModal({ open, onClose, links }: Props) {
             </Button>
           </div>
 
-          <div className="border-t border-border px-5 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
-              config.yaml
-            </p>
-            {faults > 0 ? (
-              <p className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center text-[13px] text-fg-muted">
-                {faults === 1 ? 'One link needs' : `${faults} links need`} fixing. The block
-                appears once every row has a label of its own and somewhere to go — a blog
-                will not start on a half-written one.
-              </p>
-            ) : (
-              <>
-                <Snippet className="mt-2" code={yaml} />
-                <p className="mt-2 text-[12.5px] text-fg-muted">
-                  Paste it into <code>config.yaml</code>, replacing any existing{' '}
-                  <code>links:</code> block, then run <code>plym rebuild</code>.
-                </p>
-              </>
-            )}
-          </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
-          <Button variant="secondary" onClick={onClose}>
-            Done
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border px-5 py-3">
+          <p className="text-[12.5px] text-fg-muted">
+            {faults > 0
+              ? `${faults === 1 ? 'One link needs' : `${faults} links need`} fixing — every row wants a label of its own and somewhere to go.`
+              : 'Copy the block into config.yaml, then run plym rebuild.'}
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="primary" disabled={faults > 0} onClick={() => void copy()}>
+              {copied ? <Check size={15} /> : <Copy size={15} />}
+              {copied ? 'Copied' : 'Copy config.yaml'}
+            </Button>
+            <Button variant="ghost" onClick={onClose}>
+              Done
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>
