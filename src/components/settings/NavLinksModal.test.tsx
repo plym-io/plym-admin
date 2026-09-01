@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NavLinksModal } from './NavLinksModal';
 
@@ -39,7 +39,7 @@ describe('NavLinksModal', () => {
 
   it('shows a menu row as a menu rather than as an empty address', () => {
     open();
-    expect(screen.getByText('Opens a dropdown')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Menu', pressed: true })).toBeInTheDocument();
     expect(screen.queryByLabelText('Link 2 address')).not.toBeInTheDocument();
   });
 
@@ -72,22 +72,45 @@ describe('NavLinksModal', () => {
     expect(yaml()).toContain('- text: "2026"');
   });
 
-  it('turns a link into a menu, and the menu back into the link it was', async () => {
+  it('turns a link into a menu with the toggle, and back into the link it was', async () => {
     const user = userEvent.setup();
     open();
-    await user.click(screen.getByRole('button', { name: /Add a sub-link under Home/ }));
+    const toggle = screen.getByRole('group', { name: 'Link 1 kind' });
+    await user.click(within(toggle).getByRole('button', { name: 'Menu' }));
     expect(screen.queryByLabelText('Link 1 address')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Link 1 sub-link 1 label')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Remove link 1 sub-link 1' }));
+    await user.click(within(toggle).getByRole('button', { name: 'Link' }));
     expect(screen.getByLabelText('Link 1 address')).toHaveValue('/');
   });
 
   it('names a row by its whole path, so two menus do not share one control', async () => {
     const user = userEvent.setup();
     open();
-    await user.click(screen.getByRole('button', { name: /Add a sub-link under Home/ }));
+    await user.click(
+      within(screen.getByRole('group', { name: 'Link 1 kind' })).getByRole('button', {
+        name: 'Menu',
+      }),
+    );
     expect(screen.getByLabelText('Link 1 sub-link 1 label')).toHaveValue('');
     expect(screen.getByLabelText('Link 2 sub-link 1 label')).toHaveValue('Docs');
+  });
+
+  it('reorders from the drag handle with the arrow keys', async () => {
+    const user = userEvent.setup();
+    open();
+    screen.getByRole('button', { name: 'Reorder link 2' }).focus();
+    await user.keyboard('{ArrowUp}');
+    expect(screen.getByLabelText('Link 1 label')).toHaveValue('Resources');
+    expect(screen.getByLabelText('Link 2 label')).toHaveValue('Home');
+  });
+
+  it('offers no menus in the footer, which is a flat list', async () => {
+    const user = userEvent.setup();
+    open();
+    await user.click(screen.getByRole('tab', { name: /Footer/ }));
+    expect(screen.getByLabelText('Link 1 address')).toHaveValue('/about');
+    expect(screen.queryByRole('group', { name: 'Link 1 kind' })).not.toBeInTheDocument();
   });
 
   it('offers a blog with no links an empty list rather than a blank form', () => {

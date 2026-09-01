@@ -4,10 +4,13 @@ import {
   editAt,
   faultCount,
   faultOf,
+  isMenu,
   moveAt,
+  moveTo,
   newDraft,
   readDrafts,
   removeAt,
+  setKind,
   toLinks,
   toYaml,
   yamlScalar,
@@ -15,7 +18,13 @@ import {
 } from './nav-links';
 
 function draft(text: string, url = '', children: NavDraft[] = []): NavDraft {
-  return { ...newDraft(), text, url, children };
+  return {
+    ...newDraft(),
+    kind: children.length ? 'menu' : 'link',
+    text,
+    url,
+    children,
+  };
 }
 
 describe('readDrafts', () => {
@@ -87,11 +96,13 @@ describe('editing', () => {
     expect(removeAt(tree, [1, 0])[1].children).toEqual([]);
   });
 
-  it('turns a menu back into a link when its last child goes', () => {
+  it('leaves an emptied menu a menu, for the toggle to undo', () => {
+    // Silently demoting it would answer a question the operator never asked,
+    // and the fault is what says a menu with nothing in it is unfinished.
     const menu = draft('Resources', '/resources', [draft('Docs', '/docs')]);
-    const [back] = removeAt([menu], [0, 0]);
-    expect(back.children).toEqual([]);
-    expect(toLinks([back])).toEqual([{ text: 'Resources', url: '/resources' }]);
+    const [emptied] = removeAt([menu], [0, 0]);
+    expect(isMenu(emptied)).toBe(true);
+    expect(faultOf(emptied)).toBe('menu');
   });
 
   it('reorders within a list', () => {
@@ -110,10 +121,52 @@ describe('editing', () => {
     expect(moveAt(tree, [1], 1)).toEqual(tree);
   });
 
-  it('makes a link a menu by giving it a child', () => {
-    const next = addChild([draft('Resources', '/resources')], 0);
-    expect(next[0].children).toHaveLength(1);
-    expect(next[0].children[0].text).toBe('');
+  it('adds a link to a menu', () => {
+    const next = addChild([draft('Resources', '', [draft('Docs', '/docs')])], 0);
+    expect(next[0].children.map((c) => c.text)).toEqual(['Docs', '']);
+  });
+});
+
+describe('moveTo', () => {
+  const list = ['a', 'b', 'c', 'd'].map((t) => draft(t, `/${t}`));
+
+  it('lifts a row out and puts it back, keeping the rest in order', () => {
+    // A swap would leave b and c transposed; dragging d to the top must not
+    // reorder the rows it passed over.
+    expect(moveTo(list, [3], 0).map((l) => l.text)).toEqual(['d', 'a', 'b', 'c']);
+    expect(moveTo(list, [0], 2).map((l) => l.text)).toEqual(['b', 'c', 'a', 'd']);
+  });
+
+  it('ignores a drop outside the list', () => {
+    expect(moveTo(list, [0], 4)).toEqual(list);
+    expect(moveTo(list, [0], -1)).toEqual(list);
+  });
+
+  it('moves a child within its own menu', () => {
+    const tree = [draft('Menu', '', [draft('x', '/x'), draft('y', '/y'), draft('z', '/z')])];
+    expect(moveTo(tree, [0, 2], 0)[0].children.map((c) => c.text)).toEqual(['z', 'x', 'y']);
+  });
+});
+
+describe('setKind', () => {
+  it('seeds the first child when a link becomes a menu', () => {
+    const [menu] = setKind([draft('Resources', '/resources')], 0, 'menu');
+    expect(isMenu(menu)).toBe(true);
+    expect(menu.children).toHaveLength(1);
+  });
+
+  it('gives the typed address back when a menu becomes a link again', () => {
+    const menu = draft('Resources', '/resources', [draft('Docs', '/docs')]);
+    const [back] = setKind([menu], 0, 'link');
+    expect(toLinks([back])).toEqual([{ text: 'Resources', url: '/resources' }]);
+  });
+
+  it('keeps the children it had, so the toggle is reversible', () => {
+    const menu = draft('Resources', '/resources', [draft('Docs', '/docs')]);
+    const there = setKind(setKind([menu], 0, 'link'), 0, 'menu');
+    expect(toLinks(there)).toEqual([
+      { text: 'Resources', children: [{ text: 'Docs', url: '/docs' }] },
+    ]);
   });
 });
 
@@ -132,6 +185,13 @@ describe('faults', () => {
 
   it('counts children too', () => {
     expect(faultCount([draft('Resources', '', [draft('', ''), draft('Docs', '/docs')])])).toBe(1);
+  });
+
+  it('ignores the children of a row switched back to a link', () => {
+    // They are kept so the toggle can be undone, but they are not written, so
+    // a half-typed one nobody can see must not withhold the block.
+    const menu = draft('Resources', '/resources', [draft('', '')]);
+    expect(faultCount(setKind([menu], 0, 'link'))).toBe(0);
   });
 });
 

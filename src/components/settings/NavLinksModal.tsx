@@ -1,13 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowDown,
-  ArrowElbowDownRight,
-  ArrowUp,
-  CaretDown,
-  ListDashes,
-  Plus,
-  Trash,
-} from '@phosphor-icons/react';
+import { ArrowElbowDownRight, DotsSixVertical, ListDashes, Plus, Trash } from '@phosphor-icons/react';
 import {
   NAV_SLOTS,
   NAV_SLOT_LABEL,
@@ -17,13 +9,16 @@ import {
   faultOf,
   isMenu,
   moveAt,
+  moveTo,
   newDraft,
   readDrafts,
   removeAt,
+  setKind,
   toLinks,
   toYaml,
   type NavDraft,
   type NavDrafts,
+  type NavKind,
   type NavPath,
   type NavSlot,
 } from '@/lib/nav-links';
@@ -57,32 +52,76 @@ const CHILD_EXAMPLES: [string, string][] = [
   ['API reference', 'https://example.com/api'],
 ];
 
-/** What a submenu turns into once the template renders it. */
-const MENU_NOUN: Record<NavSlot, string> = {
-  header: 'dropdown',
-  footer: 'column',
-};
+/**
+ * Only the header offers the Link/Menu toggle. plym's footer template does
+ * render a nested link as a column, so a config can arrive with one and this
+ * builder keeps it — it just isn't a shape the footer offers to create.
+ */
+const NESTS: Record<NavSlot, boolean> = { header: true, footer: false };
 
 const SLOT_BLURB: Record<NavSlot, string> = {
   header: 'Sits beside the blog name, at the top of every page.',
   footer: 'Sits above the “Powered by plym” line, at the foot of every page.',
 };
 
-const FAULT_HINT: Record<'text' | 'url', string> = {
+const FAULT_HINT: Record<'text' | 'url' | 'menu', string> = {
   text: 'Give this one a label.',
-  url: 'Add where it goes, or nest a link under it to make it a menu.',
+  url: 'Add where it goes.',
+  menu: 'A menu needs at least one link under it.',
 };
+
+/** True when two rows sit in the same list, which is as far as a drag can go. */
+function sameList(a: NavPath, b: NavPath): boolean {
+  return a.length === b.length && (a.length === 1 || a[0] === b[0]);
+}
+
+function KindToggle({
+  kind,
+  label,
+  onChange,
+}: {
+  kind: NavKind;
+  label: string;
+  onChange: (kind: NavKind) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={`${label} kind`}
+      className="flex h-9 shrink-0 items-center gap-0.5 rounded-md border border-border bg-bg-subtle p-0.5"
+    >
+      {(['link', 'menu'] as NavKind[]).map((k) => (
+        <button
+          key={k}
+          type="button"
+          aria-pressed={k === kind}
+          onClick={() => onChange(k)}
+          className={cn(
+            'rounded px-2.5 py-1 text-[12px] font-medium capitalize transition-colors',
+            k === kind ? 'bg-bg text-fg shadow-xs' : 'text-fg-muted hover:text-fg',
+          )}
+        >
+          {k === 'link' ? 'Link' : 'Menu'}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 interface RowProps {
   item: NavDraft;
   slot: NavSlot;
   path: NavPath;
   position: number;
-  count: number;
+  dragging: NavPath | null;
+  over: boolean;
   onEdit: (path: NavPath, patch: Partial<Omit<NavDraft, 'id'>>) => void;
   onMove: (path: NavPath, delta: -1 | 1) => void;
   onRemove: (path: NavPath) => void;
-  onNest?: () => void;
+  onKind?: (kind: NavKind) => void;
+  onDragFrom: (path: NavPath | null) => void;
+  onDragOver: (path: NavPath | null) => void;
+  onDrop: (path: NavPath) => void;
 }
 
 function Row({
@@ -90,27 +129,81 @@ function Row({
   slot,
   path,
   position,
-  count,
+  dragging,
+  over,
   onEdit,
   onMove,
   onRemove,
-  onNest,
+  onKind,
+  onDragFrom,
+  onDragOver,
+  onDrop,
 }: RowProps) {
+  // `draggable` is armed by the handle rather than left on: a row that is
+  // always draggable swallows text selection inside its own inputs.
+  const [armed, setArmed] = useState(false);
   const nested = path.length === 2;
   const menu = isMenu(item);
   const fault = faultOf(item);
-  const [label, address] = (nested ? CHILD_EXAMPLES : EXAMPLES[slot])[
-    position % (nested ? CHILD_EXAMPLES : EXAMPLES[slot]).length
-  ];
+  const examples = nested ? CHILD_EXAMPLES : EXAMPLES[slot];
+  const [label, address] = examples[position % examples.length];
   // Named by the whole path, not by the position in its own list: every menu
   // has a first child, and "Sub-link 1" would be the name of all of them.
   const where = nested
     ? `Link ${path[0] + 1} sub-link ${position + 1}`
     : `Link ${position + 1}`;
+  const droppable =
+    dragging !== null && sameList(dragging, path) && dragging.join() !== path.join();
 
   return (
-    <div className={cn('px-3 py-2.5', nested && 'pl-9')}>
+    <div
+      draggable={armed}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        // Firefox starts no drag at all without payload on the transfer.
+        e.dataTransfer.setData('text/plain', item.id);
+        onDragFrom(path);
+      }}
+      onDragEnd={() => {
+        setArmed(false);
+        onDragFrom(null);
+      }}
+      onDragOver={(e) => {
+        if (!droppable) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        onDragOver(path);
+      }}
+      onDragLeave={() => droppable && onDragOver(null)}
+      onDrop={(e) => {
+        if (!droppable) return;
+        e.preventDefault();
+        onDrop(path);
+      }}
+      className={cn(
+        'px-3 py-2.5 transition-colors',
+        nested && 'pl-9',
+        over && 'bg-accent/5 ring-1 ring-inset ring-accent/40',
+        dragging?.join() === path.join() && 'opacity-40',
+      )}
+    >
       <div className="flex items-start gap-2">
+        <button
+          type="button"
+          aria-label={`Reorder ${where.toLowerCase()}`}
+          title="Drag to reorder, or focus this and use the arrow keys"
+          onPointerDown={() => setArmed(true)}
+          onPointerUp={() => setArmed(false)}
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+            e.preventDefault();
+            onMove(path, e.key === 'ArrowUp' ? -1 : 1);
+          }}
+          className="mt-1 shrink-0 cursor-grab rounded p-1 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg active:cursor-grabbing"
+        >
+          <DotsSixVertical size={15} weight="bold" />
+        </button>
+
         {nested && (
           <ArrowElbowDownRight
             size={14}
@@ -119,19 +212,19 @@ function Row({
           />
         )}
 
-        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
+        <div
+          className={cn(
+            'grid min-w-0 flex-1 gap-2',
+            menu ? 'sm:grid-cols-1' : 'sm:grid-cols-2',
+          )}
+        >
           <Input
             value={item.text}
             aria-label={`${where} label`}
             placeholder={label}
             onChange={(e) => onEdit(path, { text: e.target.value })}
           />
-          {menu ? (
-            <p className="flex h-9 items-center gap-1.5 rounded-md border border-dashed border-border px-3 text-[13px] text-fg-subtle">
-              <CaretDown size={13} aria-hidden="true" />
-              Opens a {MENU_NOUN[slot]}
-            </p>
-          ) : (
+          {!menu && (
             <Input
               value={item.url}
               aria-label={`${where} address`}
@@ -141,50 +234,23 @@ function Row({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Move ${where.toLowerCase()} up`}
-            disabled={position === 0}
-            onClick={() => onMove(path, -1)}
-          >
-            <ArrowUp size={14} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Move ${where.toLowerCase()} down`}
-            disabled={position === count - 1}
-            onClick={() => onMove(path, 1)}
-          >
-            <ArrowDown size={14} />
-          </Button>
-          {onNest && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Add a sub-link under ${item.text.trim() || where.toLowerCase()}`}
-              title={`Nest a link under this one — it becomes a ${MENU_NOUN[slot]}`}
-              onClick={onNest}
-            >
-              <ArrowElbowDownRight size={14} />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Remove ${where.toLowerCase()}`}
-            className="hover:text-danger"
-            onClick={() => onRemove(path)}
-          >
-            <Trash size={14} />
-          </Button>
-        </div>
+        {onKind && (
+          <KindToggle kind={item.kind} label={where} onChange={onKind} />
+        )}
+
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Remove ${where.toLowerCase()}`}
+          className="shrink-0 hover:text-danger"
+          onClick={() => onRemove(path)}
+        >
+          <Trash size={14} />
+        </Button>
       </div>
 
       {fault && (
-        <p className={cn('mt-1.5 text-[12px] text-fg-subtle', nested && 'ml-6')}>
+        <p className={cn('mt-1.5 pl-7 text-[12px] text-fg-subtle', nested && 'pl-13')}>
           {FAULT_HINT[fault]}
         </p>
       )}
@@ -200,8 +266,8 @@ interface Props {
 }
 
 /**
- * The builder for the `links:` block: two lists of rows, one level of nesting,
- * and the YAML underneath updating as they are typed.
+ * The builder for the `links:` block: two lists of rows, one level of nesting
+ * in the header, and the YAML underneath updating as they are typed.
  *
  * It ends in a block to paste rather than a Save, because this screen is
  * read-only on purpose — config.yaml on the server is the one copy of the
@@ -213,6 +279,8 @@ interface Props {
 export function NavLinksModal({ open, onClose, links }: Props) {
   const [drafts, setDrafts] = useState<NavDrafts>(() => readDrafts(links));
   const [slot, setSlot] = useState<NavSlot>('header');
+  const [dragging, setDragging] = useState<NavPath | null>(null);
+  const [over, setOver] = useState<NavPath | null>(null);
 
   // Opening is what seeds the form. Editing and then closing without pasting
   // has to leave nothing behind — the blog is unchanged, so the next open
@@ -221,6 +289,8 @@ export function NavLinksModal({ open, onClose, links }: Props) {
     if (!open) return;
     setDrafts(readDrafts(links));
     setSlot('header');
+    setDragging(null);
+    setOver(null);
   }, [open, links]);
 
   const items = drafts[slot];
@@ -233,6 +303,25 @@ export function NavLinksModal({ open, onClose, links }: Props) {
   const apply = (fn: (list: NavDraft[]) => NavDraft[]) =>
     setDrafts((d) => ({ ...d, [slot]: fn(d[slot]) }));
 
+  const drop = (to: NavPath) => {
+    const from = dragging;
+    setDragging(null);
+    setOver(null);
+    if (from) apply((l) => moveTo(l, from, to.length === 2 ? to[1] : to[0]));
+  };
+
+  const rowProps = (path: NavPath) => ({
+    dragging,
+    over: over?.join() === path.join(),
+    onEdit: (p: NavPath, patch: Partial<Omit<NavDraft, 'id'>>) =>
+      apply((l) => editAt(l, p, patch)),
+    onMove: (p: NavPath, delta: -1 | 1) => apply((l) => moveAt(l, p, delta)),
+    onRemove: (p: NavPath) => apply((l) => removeAt(l, p)),
+    onDragFrom: setDragging,
+    onDragOver: setOver,
+    onDrop: drop,
+  });
+
   return (
     <Modal open={open} onClose={onClose} label="Header and footer links" className="max-w-3xl">
       <div className="flex max-h-[85vh] flex-col">
@@ -241,8 +330,8 @@ export function NavLinksModal({ open, onClose, links }: Props) {
             Header &amp; footer links
           </h2>
           <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
-            Build the navigation, then paste the block into <code>config.yaml</code>. A link
-            either goes somewhere or opens a menu of links that do.
+            Build the navigation, then paste the block into <code>config.yaml</code>. Drag a
+            row by its handle to reorder it.
           </p>
         </div>
 
@@ -279,11 +368,11 @@ export function NavLinksModal({ open, onClose, links }: Props) {
           {items.length === 0 ? (
             <div className="px-5 py-8 text-center">
               <ListDashes size={22} className="mx-auto text-fg-subtle" aria-hidden="true" />
-              <p className="mt-2 text-[13.5px] text-fg">Nothing in the {slot} yet.</p>
+              <p className="mt-2 text-[13.5px] text-fg">
+                Nothing in the {slot} yet.
+              </p>
               <p className="mt-1 text-[12.5px] text-fg-muted">
-                {slot === 'header'
-                  ? 'The header shows just the blog name until you add one.'
-                  : 'The footer shows just the blog name until you add one.'}
+                The {slot} shows just the blog name until you add one.
               </p>
             </div>
           ) : (
@@ -295,25 +384,37 @@ export function NavLinksModal({ open, onClose, links }: Props) {
                     slot={slot}
                     path={[i]}
                     position={i}
-                    count={items.length}
-                    onEdit={(path, patch) => apply((l) => editAt(l, path, patch))}
-                    onMove={(path, delta) => apply((l) => moveAt(l, path, delta))}
-                    onRemove={(path) => apply((l) => removeAt(l, path))}
-                    onNest={() => apply((l) => addChild(l, i))}
+                    onKind={
+                      NESTS[slot]
+                        ? (kind) => apply((l) => setKind(l, i, kind))
+                        : undefined
+                    }
+                    {...rowProps([i])}
                   />
-                  {item.children.map((child, j) => (
-                    <Row
-                      key={child.id}
-                      item={child}
-                      slot={slot}
-                      path={[i, j]}
-                      position={j}
-                      count={item.children.length}
-                      onEdit={(path, patch) => apply((l) => editAt(l, path, patch))}
-                      onMove={(path, delta) => apply((l) => moveAt(l, path, delta))}
-                      onRemove={(path) => apply((l) => removeAt(l, path))}
-                    />
-                  ))}
+                  {isMenu(item) && (
+                    <>
+                      {item.children.map((child, j) => (
+                        <Row
+                          key={child.id}
+                          item={child}
+                          slot={slot}
+                          path={[i, j]}
+                          position={j}
+                          {...rowProps([i, j])}
+                        />
+                      ))}
+                      <div className="pb-2 pl-16">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => apply((l) => addChild(l, i))}
+                        >
+                          <Plus size={13} /> Add a link to{' '}
+                          {item.text.trim() || 'this menu'}
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

@@ -33,15 +33,21 @@ export interface NavLink {
 
 export type NavLinks = Record<NavSlot, NavLink[]>;
 
+/** Which of the two things a row is, as the Link/Menu toggle sets it. */
+export type NavKind = 'link' | 'menu';
+
 /**
- * A link as the builder holds it. Two differences from the file's shape, both
- * so editing stays undoable: the row is identified, so it keeps focus and
- * caret while the list around it is reordered, and it keeps a `url` even while
- * it is a menu — turning a menu back into a link restores the address that was
- * already typed instead of silently eating it.
+ * A link as the builder holds it. Three differences from the file's shape, all
+ * so editing stays undoable: the row is identified, so it keeps focus and caret
+ * while the list around it is reordered; `kind` is stated rather than inferred
+ * from whether children happen to exist, so emptying a menu leaves a menu to
+ * fill in rather than silently becoming a link; and it keeps both a `url` and
+ * its `children` whichever kind is selected, so flipping the toggle back
+ * restores what was already typed instead of eating it.
  */
 export interface NavDraft {
   id: string;
+  kind: NavKind;
   text: string;
   url: string;
   children: NavDraft[];
@@ -59,7 +65,7 @@ let seq = 0;
 
 export function newDraft(): NavDraft {
   seq += 1;
-  return { id: `nav-${seq}`, text: '', url: '', children: [] };
+  return { id: `nav-${seq}`, kind: 'link', text: '', url: '', children: [] };
 }
 
 function text(value: unknown): string {
@@ -78,7 +84,13 @@ function readLink(value: unknown, nested: boolean): NavDraft | null {
     !nested && Array.isArray(raw.children)
       ? raw.children.map((c) => readLink(c, true)).filter((c) => c !== null)
       : [];
-  const draft = { ...newDraft(), text: text(raw.text), url: text(raw.url), children };
+  const draft: NavDraft = {
+    ...newDraft(),
+    kind: children.length ? 'menu' : 'link',
+    text: text(raw.text),
+    url: text(raw.url),
+    children,
+  };
   return draft.text || draft.url || draft.children.length ? draft : null;
 }
 
@@ -94,7 +106,7 @@ export function readDrafts(links: unknown): NavDrafts {
 
 /** True for a row that opens a menu rather than going somewhere. */
 export function isMenu(item: NavDraft): boolean {
-  return item.children.length > 0;
+  return item.kind === 'menu';
 }
 
 export function toLinks(items: NavDraft[]): NavLink[] {
@@ -135,41 +147,70 @@ export function removeAt(items: NavDraft[], path: NavPath): NavDraft[] {
   return mapAt(items, path, () => null);
 }
 
-/** Reorder within the row's own list. Out-of-range moves leave the list alone. */
-export function moveAt(items: NavDraft[], path: NavPath, delta: -1 | 1): NavDraft[] {
+/**
+ * Lift a row out of its list and put it back at `to`, which is what a drop
+ * means. Not a swap: dragging the last row to the top has to leave the rows it
+ * passed in the order they were in, and a swap would jumble them.
+ */
+export function moveTo(items: NavDraft[], path: NavPath, to: number): NavDraft[] {
   const [index, childIndex] = path;
   if (childIndex !== undefined) {
     return items.map((item, i) =>
-      i === index ? { ...item, children: moveAt(item.children, [childIndex], delta) } : item,
+      i === index ? { ...item, children: moveTo(item.children, [childIndex], to) } : item,
     );
   }
-  const to = index + delta;
   if (index < 0 || index >= items.length || to < 0 || to >= items.length) return items;
   const next = [...items];
-  [next[index], next[to]] = [next[to], next[index]];
+  next.splice(to, 0, ...next.splice(index, 1));
   return next;
 }
 
-/** Give a row a submenu, which is also what turns a plain link into a menu. */
+/** Reorder by one place — the keyboard's half of drag and drop. */
+export function moveAt(items: NavDraft[], path: NavPath, delta: -1 | 1): NavDraft[] {
+  const at = path.length === 2 ? path[1] : path[0];
+  return moveTo(items, path, at + delta);
+}
+
+/** Add a link to a row's menu. */
 export function addChild(items: NavDraft[], index: number): NavDraft[] {
   return items.map((item, i) =>
     i === index ? { ...item, children: [...item.children, newDraft()] } : item,
   );
 }
 
+/**
+ * Flip a row between the two kinds. Becoming a menu with nothing under it
+ * seeds the first child, because an empty menu is the one shape that renders
+ * as neither a link nor a menu — the toggle should leave something to fill in,
+ * not an error to discover.
+ */
+export function setKind(items: NavDraft[], index: number, kind: NavKind): NavDraft[] {
+  return items.map((item, i) => {
+    if (i !== index) return item;
+    const children =
+      kind === 'menu' && !item.children.length ? [newDraft()] : item.children;
+    return { ...item, kind, children };
+  });
+}
+
 /* ── what is not finished yet ─────────────────────────────────────────── */
 
-export type NavFault = 'text' | 'url';
+export type NavFault = 'text' | 'url' | 'menu';
 
 export function faultOf(item: NavDraft): NavFault | null {
   if (!item.text.trim()) return 'text';
-  if (!isMenu(item) && !item.url.trim()) return 'url';
-  return null;
+  if (isMenu(item)) return item.children.length ? null : 'menu';
+  return item.url.trim() ? null : 'url';
 }
 
+/**
+ * Only what the block will actually carry. A row switched back to Link keeps
+ * the children it had, so the toggle is reversible — but they are not written,
+ * and half-typed rows nobody can see must not be what withholds the block.
+ */
 export function faultCount(items: NavDraft[]): number {
   return items.reduce(
-    (n, item) => n + (faultOf(item) ? 1 : 0) + faultCount(item.children),
+    (n, item) => n + (faultOf(item) ? 1 : 0) + (isMenu(item) ? faultCount(item.children) : 0),
     0,
   );
 }
