@@ -195,10 +195,21 @@ export function setKind(items: NavDraft[], index: number, kind: NavKind): NavDra
 
 /* ── what is not finished yet ─────────────────────────────────────────── */
 
-export type NavFault = 'text' | 'url' | 'menu';
+export type NavFault = 'text' | 'url' | 'menu' | 'duplicate';
 
-export function faultOf(item: NavDraft): NavFault | null {
-  if (!item.text.trim()) return 'text';
+/**
+ * What is wrong with one row, given the rows it sits beside.
+ *
+ * `duplicate` is a consequence of the file's shape rather than of the link:
+ * a label is the mapping key it will be written as, so two siblings sharing
+ * one label are one entry by the time YAML is read back, and the second
+ * quietly wins. Catching it here is the difference between a link that
+ * disappears and a link that is reported.
+ */
+export function faultOf(item: NavDraft, siblings: NavDraft[] = []): NavFault | null {
+  const label = item.text.trim();
+  if (!label) return 'text';
+  if (siblings.some((s) => s !== item && s.text.trim() === label)) return 'duplicate';
   if (isMenu(item)) return item.children.length ? null : 'menu';
   return item.url.trim() ? null : 'url';
 }
@@ -210,7 +221,10 @@ export function faultOf(item: NavDraft): NavFault | null {
  */
 export function faultCount(items: NavDraft[]): number {
   return items.reduce(
-    (n, item) => n + (faultOf(item) ? 1 : 0) + (isMenu(item) ? faultCount(item.children) : 0),
+    (n, item) =>
+      n +
+      (faultOf(item, items) ? 1 : 0) +
+      (isMenu(item) ? faultCount(item.children) : 0),
     0,
   );
 }
@@ -221,10 +235,12 @@ const INDICATORS = new Set(Array.from('-?:,[]{}#&*!|>\'"%@`'));
 const NOT_A_STRING = /^(?:true|false|null|yes|no|on|off|y|n|~)$/i;
 
 /**
- * A string as YAML will read it back. Plain wherever plain is unambiguous, so
- * the block looks like the one in the docs; double-quoted the moment it isn't,
- * because a label that YAML parses as a boolean or a number is a config the
- * blog refuses to load. JSON's escaping is a subset of YAML's, so
+ * A string as YAML will read it back — used for both halves of `Name: url`,
+ * because a label is a mapping key now and a key is exactly as quotable as a
+ * value. Plain wherever plain is unambiguous, so the block looks like the one
+ * in the docs; double-quoted the moment it isn't, because plym rejects a name
+ * YAML handed it as a boolean or a number ("quote it, so yaml reads 'on' or
+ * '2026' as a label"). JSON's escaping is a subset of YAML's, so
  * `JSON.stringify` is the correct quoted form.
  */
 export function yamlScalar(value: string): string {
@@ -241,13 +257,18 @@ export function yamlScalar(value: string): string {
   return plain ? value : JSON.stringify(value);
 }
 
+/**
+ * A navigation as named blocks: `Name: url`, or a name carrying its own block.
+ * plym reads the mapping in written order and rejects the `- text:/url:` list
+ * outright, so the order of these lines is the order of the menu.
+ */
 function block(items: NavLink[], indent: number): string[] {
   const pad = ' '.repeat(indent);
   return items.flatMap((link) => {
-    const head = `${pad}- text: ${yamlScalar(link.text)}`;
+    const name = `${pad}${yamlScalar(link.text)}:`;
     return link.children?.length
-      ? [head, `${pad}  children:`, ...block(link.children, indent + 4)]
-      : [head, `${pad}  url: ${yamlScalar(link.url ?? '')}`];
+      ? [name, ...block(link.children, indent + 2)]
+      : [`${name} ${yamlScalar(link.url ?? '')}`];
   });
 }
 
@@ -255,7 +276,9 @@ export function toYaml(links: NavLinks): string {
   const lines = ['links:'];
   for (const slot of NAV_SLOTS) {
     const items = links[slot];
-    if (!items.length) lines.push(`  ${slot}: []`);
+    // An empty mapping rather than nothing at all: pasting the block has to be
+    // able to clear a navigation, not just replace one.
+    if (!items.length) lines.push(`  ${slot}: {}`);
     else lines.push(`  ${slot}:`, ...block(items, 4));
   }
   return lines.join('\n');

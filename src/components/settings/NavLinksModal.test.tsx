@@ -10,16 +10,34 @@ import { NavLinksModal } from './NavLinksModal';
  * offering it, and that the dialog opens on what the server serves.
  */
 
+/** Exactly the document `GET /api/config` serves, normalised list and all. */
 const LINKS = {
   header: [
     { text: 'Home', url: '/', children: [] },
     {
       text: 'Resources',
       url: null,
-      children: [{ text: 'Docs', url: 'https://plym.io/docs/', children: [] }],
+      children: [
+        { text: 'Docs', url: 'https://plym.io/docs/', children: [] },
+        { text: 'Tools', url: '/tools', children: [] },
+      ],
     },
   ],
-  footer: [{ text: 'About', url: '/about', children: [] }],
+  footer: [
+    {
+      text: 'Open Source',
+      url: null,
+      children: [
+        { text: 'GitHub', url: 'https://github.com/plym-io/plym', children: [] },
+        {
+          text: 'License',
+          url: 'https://github.com/plym-io/plym/blob/main/LICENSE',
+          children: [],
+        },
+      ],
+    },
+    { text: 'About', url: '/about', children: [] },
+  ],
 };
 
 function open(links: unknown = LINKS) {
@@ -34,7 +52,7 @@ describe('NavLinksModal', () => {
     expect(screen.getByLabelText('Link 1 label')).toHaveValue('Home');
     expect(screen.getByLabelText('Link 1 address')).toHaveValue('/');
     expect(screen.getByLabelText('Link 2 sub-link 1 label')).toHaveValue('Docs');
-    expect(yaml()).toContain('    - text: Home');
+    expect(yaml()).toContain('    Home: /');
   });
 
   it('shows a menu row as a menu rather than as an empty address', () => {
@@ -48,7 +66,8 @@ describe('NavLinksModal', () => {
     open();
     expect(screen.queryByDisplayValue('About')).not.toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: /Footer/ }));
-    expect(screen.getByLabelText('Link 1 label')).toHaveValue('About');
+    expect(screen.getByLabelText('Link 1 label')).toHaveValue('Open Source');
+    expect(screen.getByLabelText('Link 2 label')).toHaveValue('About');
     expect(screen.getByText(/Powered by plym/)).toBeInTheDocument();
   });
 
@@ -57,11 +76,11 @@ describe('NavLinksModal', () => {
     open();
     await user.click(screen.getByRole('button', { name: /Add another link/ }));
     expect(yaml()).toBeNull();
-    expect(screen.getByText(/One link is unfinished/)).toBeInTheDocument();
+    expect(screen.getByText(/One link needs fixing/)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText('Link 3 label'), 'Pricing');
     await user.type(screen.getByLabelText('Link 3 address'), '/pricing');
-    expect(yaml()).toContain('    - text: Pricing');
+    expect(yaml()).toContain('    Pricing: /pricing');
   });
 
   it('will not write a label YAML would read back as something else', async () => {
@@ -69,7 +88,7 @@ describe('NavLinksModal', () => {
     open();
     await user.clear(screen.getByLabelText('Link 1 label'));
     await user.type(screen.getByLabelText('Link 1 label'), '2026');
-    expect(yaml()).toContain('- text: "2026"');
+    expect(yaml()).toContain('    "2026": /');
   });
 
   it('turns a link into a menu with the toggle, and back into the link it was', async () => {
@@ -105,17 +124,29 @@ describe('NavLinksModal', () => {
     expect(screen.getByLabelText('Link 2 label')).toHaveValue('Home');
   });
 
-  it('offers no menus in the footer, which is a flat list', async () => {
+  it('builds a titled column in the footer too', async () => {
     const user = userEvent.setup();
     open();
     await user.click(screen.getByRole('tab', { name: /Footer/ }));
-    expect(screen.getByLabelText('Link 1 address')).toHaveValue('/about');
-    expect(screen.queryByRole('group', { name: 'Link 1 kind' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Link 1 sub-link 2 label')).toHaveValue('License');
+    expect(yaml()).toContain('    Open Source:');
+    expect(yaml()).toContain('      GitHub: https://github.com/plym-io/plym');
+    // The ungrouped one keeps its own row beneath the columns.
+    expect(yaml()).toContain('    About: /about');
+  });
+
+  it('says so when two links in one block would collapse into one', async () => {
+    const user = userEvent.setup();
+    open();
+    await user.clear(screen.getByLabelText('Link 1 label'));
+    await user.type(screen.getByLabelText('Link 1 label'), 'Resources');
+    expect(screen.getAllByText(/Another link here has this label/)).toHaveLength(2);
+    expect(yaml()).toBeNull();
   });
 
   it('offers a blog with no links an empty list rather than a blank form', () => {
     open(null);
     expect(screen.getByText(/Nothing in the header yet/)).toBeInTheDocument();
-    expect(yaml()).toBe('links:\n  header: []\n  footer: []');
+    expect(yaml()).toBe('links:\n  header: {}\n  footer: {}');
   });
 });

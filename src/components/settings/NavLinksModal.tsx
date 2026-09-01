@@ -18,6 +18,7 @@ import {
   toYaml,
   type NavDraft,
   type NavDrafts,
+  type NavFault,
   type NavKind,
   type NavPath,
   type NavSlot,
@@ -52,22 +53,19 @@ const CHILD_EXAMPLES: [string, string][] = [
   ['API reference', 'https://example.com/api'],
 ];
 
-/**
- * Only the header offers the Link/Menu toggle. plym's footer template does
- * render a nested link as a column, so a config can arrive with one and this
- * builder keeps it — it just isn't a shape the footer offers to create.
- */
-const NESTS: Record<NavSlot, boolean> = { header: true, footer: false };
-
 const SLOT_BLURB: Record<NavSlot, string> = {
-  header: 'Sits beside the blog name, at the top of every page.',
-  footer: 'Sits above the “Powered by plym” line, at the foot of every page.',
+  header: 'Sits beside the blog name, at the top of every page. A menu opens as a dropdown.',
+  footer:
+    'Sits above the “Powered by plym” line. Menus become titled columns; plain links sit in a row beneath them.',
 };
 
-const FAULT_HINT: Record<'text' | 'url' | 'menu', string> = {
+const FAULT_HINT: Record<NavFault, string> = {
   text: 'Give this one a label.',
   url: 'Add where it goes.',
   menu: 'A menu needs at least one link under it.',
+  // The label is the key this row is written under, so a repeat is not a
+  // duplicate in the file — it is the one entry that survives it.
+  duplicate: 'Another link here has this label. Two of them become one.',
 };
 
 /** True when two rows sit in the same list, which is as far as a drag can go. */
@@ -113,6 +111,8 @@ interface RowProps {
   slot: NavSlot;
   path: NavPath;
   position: number;
+  /** The list this row sits in — a repeated label is only a clash within it. */
+  siblings: NavDraft[];
   dragging: NavPath | null;
   over: boolean;
   onEdit: (path: NavPath, patch: Partial<Omit<NavDraft, 'id'>>) => void;
@@ -129,6 +129,7 @@ function Row({
   slot,
   path,
   position,
+  siblings,
   dragging,
   over,
   onEdit,
@@ -144,7 +145,7 @@ function Row({
   const [armed, setArmed] = useState(false);
   const nested = path.length === 2;
   const menu = isMenu(item);
-  const fault = faultOf(item);
+  const fault = faultOf(item, siblings);
   const examples = nested ? CHILD_EXAMPLES : EXAMPLES[slot];
   const [label, address] = examples[position % examples.length];
   // Named by the whole path, not by the position in its own list: every menu
@@ -384,11 +385,8 @@ export function NavLinksModal({ open, onClose, links }: Props) {
                     slot={slot}
                     path={[i]}
                     position={i}
-                    onKind={
-                      NESTS[slot]
-                        ? (kind) => apply((l) => setKind(l, i, kind))
-                        : undefined
-                    }
+                    siblings={items}
+                    onKind={(kind) => apply((l) => setKind(l, i, kind))}
                     {...rowProps([i])}
                   />
                   {isMenu(item) && (
@@ -400,6 +398,7 @@ export function NavLinksModal({ open, onClose, links }: Props) {
                           slot={slot}
                           path={[i, j]}
                           position={j}
+                          siblings={item.children}
                           {...rowProps([i, j])}
                         />
                       ))}
@@ -436,9 +435,9 @@ export function NavLinksModal({ open, onClose, links }: Props) {
             </p>
             {faults > 0 ? (
               <p className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center text-[13px] text-fg-muted">
-                {faults === 1 ? 'One link is' : `${faults} links are`} unfinished. The block
-                appears once every row has a label and somewhere to go — a blog will not start
-                on a half-written one.
+                {faults === 1 ? 'One link needs' : `${faults} links need`} fixing. The block
+                appears once every row has a label of its own and somewhere to go — a blog
+                will not start on a half-written one.
               </p>
             ) : (
               <>

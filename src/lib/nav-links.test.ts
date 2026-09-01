@@ -193,6 +193,27 @@ describe('faults', () => {
     const menu = draft('Resources', '/resources', [draft('', '')]);
     expect(faultCount(setKind([menu], 0, 'link'))).toBe(0);
   });
+
+  it('catches two links in one block sharing a label', () => {
+    // The label is the mapping key, so the second would silently replace the
+    // first the moment YAML read the file back.
+    const clash = [draft('Docs', '/docs'), draft('Docs', '/documentation')];
+    expect(faultOf(clash[1], clash)).toBe('duplicate');
+    expect(faultCount(clash)).toBe(2);
+  });
+
+  it('lets two menus each have a link of the same name', () => {
+    const tree = [
+      draft('Product', '', [draft('Docs', '/p/docs')]),
+      draft('Company', '', [draft('Docs', '/c/docs')]),
+    ];
+    expect(faultCount(tree)).toBe(0);
+  });
+
+  it('compares labels as they will be written, not as they were typed', () => {
+    const clash = [draft('Docs', '/docs'), draft('  Docs  ', '/documentation')];
+    expect(faultOf(clash[1], clash)).toBe('duplicate');
+  });
 });
 
 describe('yamlScalar', () => {
@@ -228,32 +249,53 @@ describe('yamlScalar', () => {
 });
 
 describe('toYaml', () => {
-  it('writes the block exactly as config.yaml documents it', () => {
+  it('writes the named blocks exactly as config.yaml documents them', () => {
     const yaml = toYaml({
       header: [
         { text: 'Home', url: '/' },
-        { text: 'Resources', children: [{ text: 'Docs', url: 'https://plym.io/docs/' }] },
+        {
+          text: 'Resources',
+          children: [
+            { text: 'Docs', url: 'https://plym.io/docs/' },
+            { text: 'Templates', url: 'https://plym.io/templates' },
+          ],
+        },
       ],
-      footer: [{ text: 'About', url: '/about' }],
+      footer: [
+        {
+          text: 'Open Source',
+          children: [{ text: 'GitHub', url: 'https://github.com/plym-io/plym' }],
+        },
+        { text: 'About', url: '/about' },
+      ],
     });
     expect(yaml).toBe(
       [
         'links:',
         '  header:',
-        '    - text: Home',
-        '      url: /',
-        '    - text: Resources',
-        '      children:',
-        '        - text: Docs',
-        '          url: https://plym.io/docs/',
+        '    Home: /',
+        '    Resources:',
+        '      Docs: https://plym.io/docs/',
+        '      Templates: https://plym.io/templates',
         '  footer:',
-        '    - text: About',
-        '      url: /about',
+        '    Open Source:',
+        '      GitHub: https://github.com/plym-io/plym',
+        '    About: /about',
       ].join('\n'),
     );
   });
 
+  it('never writes the list form, which plym rejects outright', () => {
+    expect(toYaml({ header: [{ text: 'Home', url: '/' }], footer: [] })).not.toContain('- text:');
+  });
+
+  it('quotes a name YAML would hand plym as something other than text', () => {
+    // plym's own message: "quote it, so yaml reads 'on' or '2026' as a label".
+    const yaml = toYaml({ header: [{ text: 'On', url: '/on' }], footer: [] });
+    expect(yaml).toContain('    "On": /on');
+  });
+
   it('says an empty slot out loud, so pasting it clears the old one', () => {
-    expect(toYaml({ header: [], footer: [] })).toBe('links:\n  header: []\n  footer: []');
+    expect(toYaml({ header: [], footer: [] })).toBe('links:\n  header: {}\n  footer: {}');
   });
 });
