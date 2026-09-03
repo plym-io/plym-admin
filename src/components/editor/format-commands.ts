@@ -75,9 +75,9 @@ export function toggleInline(state: EditorState, mark: string): TransactionSpec 
 const URLISH = /^(https?:\/\/|mailto:|\/|#)/i;
 
 /**
- * Wrap the selection in a link. Selecting a URL puts the caret in the label;
- * selecting words (or nothing) selects the placeholder URL so it can be typed
- * or pasted straight over.
+ * Wrap the selection in a link. The caret lands inside the empty half — the
+ * label when a URL was selected, and otherwise the label's end, where the
+ * URL popover opens over the caret and takes the target.
  */
 export function insertLink(state: EditorState): TransactionSpec {
   return state.changeByRange((range) => {
@@ -85,14 +85,10 @@ export function insertLink(state: EditorState): TransactionSpec {
     const text = state.sliceDoc(from, to).trim();
     const isUrl = URLISH.test(text);
     const label = isUrl ? '' : text;
-    const url = isUrl ? text : 'https://';
-    const insert = `[${label}](${url})`;
-    const urlStart = from + label.length + 3;
+    const url = isUrl ? text : '';
     return {
-      changes: { from, to, insert },
-      range: isUrl
-        ? EditorSelection.cursor(from + 1)
-        : EditorSelection.range(urlStart, urlStart + url.length),
+      changes: { from, to, insert: `[${label}](${url})` },
+      range: EditorSelection.cursor(from + 1 + label.length),
     };
   });
 }

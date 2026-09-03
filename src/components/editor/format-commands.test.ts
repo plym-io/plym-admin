@@ -55,10 +55,10 @@ describe('toggleInline', () => {
 });
 
 describe('insertLink', () => {
-  it('makes the selection the label and selects the placeholder URL', () => {
+  it('makes the selection the label and leaves the caret for the popover', () => {
     const out = apply('see docs', [4, 8], (s) => insertLink(s));
-    expect(out.doc).toBe('see [docs](https://)');
-    expect(out.selected).toBe('https://');
+    expect(out.doc).toBe('see [docs]()');
+    expect(out.cursor).toBe(9);
   });
 
   it('treats a selected URL as the target and waits for a label', () => {

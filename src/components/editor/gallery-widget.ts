@@ -18,8 +18,8 @@ import {
  * It is a fenced block rather than a `:::` one (see the `custom_fences` config
  * in `plym/render/markdown_renderer.py`), and its body is nothing but image
  * lines, so unlike a callout there is no prose to keep editable in place. That
- * makes it a replacement, like a table: the strip stands in for the source
- * until the caret is put back inside it.
+ * makes it a replacement, like a table: the strip is the fence's only face in
+ * rich mode, and clicking it selects the whole block for deletion.
  */
 
 export const GALLERY = 'gallery';
@@ -58,6 +58,19 @@ class GalleryWidget extends WidgetType {
   toDOM(view: EditorView) {
     const strip = document.createElement('div');
     strip.className = 'cm-md-gallery';
+    // The source never shows, so a click selects the strip as an object —
+    // highlighted, and one Backspace away from gone.
+    strip.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const pos = view.posAtDOM(strip);
+      const resolved = syntaxTree(view.state).resolveInner(pos, 1);
+      let node: typeof resolved | null = resolved;
+      while (node && node.name !== 'FencedCode') node = node.parent;
+      if (node) {
+        view.dispatch({ selection: { anchor: node.from, head: node.to } });
+        view.focus();
+      }
+    });
     for (const image of this.images) {
       const img = document.createElement('img');
       img.src = image.src;
@@ -70,9 +83,8 @@ class GalleryWidget extends WidgetType {
     return strip;
   }
 
-  /** Clicks go through, so clicking the strip drops the caret into its source. */
   ignoreEvent() {
-    return false;
+    return true;
   }
 
   get estimatedHeight() {
@@ -82,10 +94,6 @@ class GalleryWidget extends WidgetType {
 
 const OPEN_FENCE = /^(?:`{3,}|~{3,})[ ]*gallery$/;
 const CLOSE_FENCE = /^(?:`{3,}|~{3,})$/;
-
-function selectionTouches(state: EditorState, from: number, to: number): boolean {
-  return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
-}
 
 /**
  * The lines between the fences. Read off the text rather than the tree so an
@@ -99,7 +107,6 @@ function bodyOf(state: EditorState, from: number, to: number): string {
 
 /** True when this fence is drawn as a strip, so live-preview leaves it alone. */
 export function galleryIsRendered(state: EditorState, from: number, to: number): boolean {
-  if (selectionTouches(state, from, to)) return false;
   if (!OPEN_FENCE.test(state.doc.lineAt(from).text.trim())) return false;
   return parseGallery(bodyOf(state, from, to)).length > 0;
 }
@@ -135,7 +142,7 @@ function build(state: EditorState): DecorationSet {
 export const galleryPreview: Extension = StateField.define<DecorationSet>({
   create: build,
   update: (decos, tr) =>
-    tr.docChanged || tr.selection || syntaxTree(tr.state) !== syntaxTree(tr.startState)
+    tr.docChanged || syntaxTree(tr.state) !== syntaxTree(tr.startState)
       ? build(tr.state)
       : decos,
   provide: (f) => EditorView.decorations.from(f),

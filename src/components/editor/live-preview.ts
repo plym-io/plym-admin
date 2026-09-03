@@ -1,6 +1,6 @@
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
-import type { EditorState, Extension, Range } from '@codemirror/state';
+import type { Extension, Range } from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
@@ -13,14 +13,19 @@ import { tableIsRendered, tablePreview } from './table-widget';
 import { galleryIsRendered, galleryPreview } from './gallery-widget';
 import { colonBlockPreview } from './colon-blocks';
 import { takeawaysPreview } from './takeaways';
+import { syntaxEdits } from './syntax-edits';
 
 /**
- * "WYSIWYG" over a markdown document, the way Obsidian and Typora do it: the
- * document stays markdown — the source of truth never changes — and the
- * *rendering* of the syntax changes. Headings get heading sizes, `**bold**`
- * reads bold, images show, and the markers themselves fade out until the
- * caret enters that construct, at which point the raw text comes back so you
- * can edit it.
+ * WYSIWYG over a markdown document: the document stays markdown — the source
+ * of truth never changes — and only the *rendering* of the syntax changes.
+ * Headings get heading sizes, `**bold**` reads bold, images show, and the
+ * markers themselves are never drawn at all. Not on hover, not under the
+ * caret: the syntax is the file format, not the writing experience.
+ *
+ * That makes every hidden marker something the caret could otherwise walk
+ * into or half-delete, so each hidden range is also atomic (the cursor skips
+ * it whole) and syntax-edits teaches typing and deletion what the invisible
+ * characters mean.
  *
  * The alternative — a rich-text surface serialising back to markdown — loses
  * whatever it doesn't model (front matter, raw HTML, footnotes, its own
@@ -31,7 +36,7 @@ import { takeawaysPreview } from './takeaways';
 const HEADING = /^ATXHeading(\d)$/;
 const SETEXT = /^SetextHeading(\d)$/;
 
-/** Markers that vanish while the caret is elsewhere. */
+/** Markers that are never drawn. */
 const MARKS = new Set([
   'HeaderMark',
   'EmphasisMark',
@@ -55,6 +60,9 @@ const LIST_MARK = mark('cm-md-list-mark');
 const URL_MARK = mark('cm-md-url');
 
 const BULLET = /^[-*+]$/;
+
+/** `[label](…` — how far the visible words of a link run. */
+const LABEL = /^\[([^\]]*)\]\(/;
 
 /** The `-` of a bullet list, drawn as a bullet. */
 class BulletWidget extends WidgetType {
@@ -91,13 +99,25 @@ class ImageWidget extends WidgetType {
     // The image's height isn't known until it loads; without this the lines
     // below it stay where the placeholder was and the caret sits off-target.
     img.addEventListener('load', () => view.requestMeasure());
+    // The source never shows, so a click selects the image as an object —
+    // highlighted, and one Backspace away from gone.
+    img.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const pos = view.posAtDOM(wrap);
+      const resolved = syntaxTree(view.state).resolveInner(pos, 1);
+      let node: typeof resolved | null = resolved;
+      while (node && node.name !== 'Image') node = node.parent;
+      if (node) {
+        view.dispatch({ selection: { anchor: node.from, head: node.to } });
+        view.focus();
+      }
+    });
     wrap.appendChild(img);
     return wrap;
   }
 
-  /** Let clicks through, so clicking an image drops the caret into its source. */
   ignoreEvent() {
-    return false;
+    return true;
   }
 
   get estimatedHeight() {
@@ -105,28 +125,30 @@ class ImageWidget extends WidgetType {
   }
 }
 
-/** True when the selection is inside (or touching) this range — reveal source. */
-function selectionTouches(state: EditorState, from: number, to: number): boolean {
-  return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
-}
-
-/** True when the selection actually reaches into this range (touching doesn't count). */
-function selectionInside(state: EditorState, from: number, to: number): boolean {
-  return state.selection.ranges.some((r) => r.from < to && r.to > from);
-}
-
-/** True when the selection sits on any line this range covers. */
-function selectionOnLines(state: EditorState, from: number, to: number): boolean {
-  const start = state.doc.lineAt(from).from;
-  const end = state.doc.lineAt(to).to;
-  return selectionTouches(state, start, end);
-}
-
 const IMAGE = /^!\[([^\]]*)\]\(\s*<?([^\s)>]+)>?[^)]*\)$/;
 
-function build(view: EditorView): DecorationSet {
+interface Built {
+  decorations: DecorationSet;
+  hidden: DecorationSet;
+}
+
+function build(view: EditorView): Built {
   const { state } = view;
   const decos: Range<Decoration>[] = [];
+  const atoms: Range<Decoration>[] = [];
+
+  const hide = (from: number, to: number) => {
+    if (to <= from) return;
+    const r = hidden.range(from, to);
+    decos.push(r);
+    atoms.push(r);
+  };
+
+  const replace = (from: number, to: number, deco: Decoration) => {
+    const r = deco.range(from, to);
+    decos.push(r);
+    atoms.push(r);
+  };
 
   /** Add a line decoration to every line the range spans. */
   const eachLine = (from: number, to: number, deco: Decoration) => {
@@ -178,55 +200,55 @@ function build(view: EditorView): DecorationSet {
             eachLine(node.from, node.to, line('cm-md-codeblock'));
             return;
           case 'Table':
-            // A table with the caret outside it is drawn as a real grid by
-            // the table field; leave both it and its cells alone.
+            // A parseable table is drawn as a grid by the table field; leave
+            // both it and its cells alone.
             if (tableIsRendered(state, node.from, node.to)) return false;
             eachLine(node.from, node.to, line('cm-md-table'));
             return;
           case 'HorizontalRule':
+            // The rule is the border the line class draws; the dashes that
+            // put it there stay out of sight.
             eachLine(node.from, node.to, line('cm-md-hr'));
-            return;
+            hide(node.from, node.to);
+            return false;
           case 'ListMark': {
             const src = state.doc.sliceString(node.from, node.to);
             // A bullet reads as a bullet; "1." is already what it should be.
-            if (
-              BULLET.test(src) &&
-              !selectionOnLines(state, node.from, node.to)
-            ) {
-              decos.push(
-                Decoration.replace({ widget: new BulletWidget() }).range(
-                  node.from,
-                  node.to,
-                ),
-              );
+            if (BULLET.test(src)) {
+              replace(node.from, node.to, Decoration.replace({ widget: new BulletWidget() }));
             } else {
               decos.push(LIST_MARK.range(node.from, node.to));
             }
             return;
           }
-          case 'Link':
+          case 'Link': {
+            // The label is the link; the brackets and the target are hidden
+            // in one piece each, title included, and the popover edits the
+            // URL. Descend still — emphasis inside the label draws itself.
             decos.push(LINK.range(node.from, node.to));
+            const m = LABEL.exec(state.doc.sliceString(node.from, node.to));
+            if (m) {
+              hide(node.from, node.from + 1);
+              hide(node.from + 1 + m[1].length, node.to);
+            }
             return;
+          }
           case 'URL': {
-            // Inside a []() the target is noise once the label reads as a
-            // link; on its own (an autolink) it *is* the text.
-            const link = node.node.parent;
-            if (link?.name === 'Link' && !selectionTouches(state, link.from, link.to)) {
-              decos.push(hidden.range(node.from, node.to));
-            } else {
+            // Inside a []() the Link case has already hidden the target; on
+            // its own (an autolink) it *is* the text.
+            if (node.node.parent?.name !== 'Link') {
               decos.push(URL_MARK.range(node.from, node.to));
             }
             return;
           }
           case 'Image': {
-            if (selectionTouches(state, node.from, node.to)) return false;
             const m = IMAGE.exec(state.doc.sliceString(node.from, node.to));
             // An empty URL is an upload still in flight — leave it as text.
             if (!m) return false;
-            decos.push(
-              Decoration.replace({
-                widget: new ImageWidget(m[2], m[1]),
-              }).range(node.from, node.to),
+            replace(
+              node.from,
+              node.to,
+              Decoration.replace({ widget: new ImageWidget(m[2], m[1]) }),
             );
             return false;
           }
@@ -238,23 +260,9 @@ function build(view: EditorView): DecorationSet {
         // A fence is the only thing telling you where a code block ends, and
         // hiding it would leave a bare empty line. Inline backticks go.
         if (name === 'CodeMark' && parent?.name !== 'InlineCode') return;
-
-        // How far the caret has to be for a marker to hide:
-        //  · heading/quote — off the line entirely, so `##` doesn't flicker
-        //    back mid-word;
-        //  · link — outside the whole link, so the brackets and the URL they
-        //    hide always come back together;
-        //  · emphasis, strike, code — actually inside the word. Sitting at
-        //    either end of a bold run isn't editing it, so the asterisks
-        //    stay hidden as you write past them.
-        const scope = parent ?? node.node;
-        const away =
-          name === 'HeaderMark' || name === 'QuoteMark'
-            ? !selectionOnLines(state, scope.from, scope.to)
-            : name === 'LinkMark'
-              ? !selectionTouches(state, scope.from, scope.to)
-              : !selectionInside(state, scope.from, scope.to);
-        if (!away) return;
+        // A Link's own marks were hidden by the Link case; what reaches here
+        // is an autolink's angle brackets.
+        if (name === 'LinkMark' && parent?.name === 'Link') return;
 
         // `## ` — the separating space goes with the hashes, or the heading
         // would render with a leading gap.
@@ -262,12 +270,15 @@ function build(view: EditorView): DecorationSet {
           name === 'HeaderMark' && state.doc.sliceString(node.to, node.to + 1) === ' '
             ? node.to + 1
             : node.to;
-        if (end > node.from) decos.push(hidden.range(node.from, end));
+        hide(node.from, end);
       },
     });
   }
 
-  return Decoration.set(decos, true);
+  return {
+    decorations: Decoration.set(decos, true),
+    hidden: Decoration.set(atoms, true),
+  };
 }
 
 /**
@@ -296,23 +307,36 @@ export const proseHighlight: Extension = syntaxHighlighting(
   ]),
 );
 
-const inlinePreview: Extension = ViewPlugin.fromClass(
+const inlinePreview = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
+    hidden: DecorationSet;
 
     constructor(view: EditorView) {
-      this.decorations = build(view);
+      const built = build(view);
+      this.decorations = built.decorations;
+      this.hidden = built.hidden;
     }
 
     update(u: ViewUpdate) {
-      // Selection matters as much as content here: moving the caret is what
-      // reveals and re-hides the markers.
-      if (u.docChanged || u.selectionSet || u.viewportChanged) {
-        this.decorations = build(u.view);
+      // Selection no longer changes what is drawn, but the tree can finish
+      // parsing without a doc change, and the viewport moves.
+      if (u.docChanged || u.viewportChanged || u.selectionSet) {
+        const built = build(u.view);
+        this.decorations = built.decorations;
+        this.hidden = built.hidden;
       }
     }
   },
-  { decorations: (v) => v.decorations },
+  {
+    decorations: (v) => v.decorations,
+    provide: (plugin) =>
+      // Atomic, so the caret steps over a hidden marker as one unit instead
+      // of stranding itself between invisible characters.
+      EditorView.atomicRanges.of(
+        (view) => view.plugin(plugin)?.hidden ?? Decoration.none,
+      ),
+  },
 );
 
 /**
@@ -330,4 +354,5 @@ export const livePreview: Extension = [
   colonBlockPreview,
   takeawaysPreview,
   inlinePreview,
+  syntaxEdits,
 ];

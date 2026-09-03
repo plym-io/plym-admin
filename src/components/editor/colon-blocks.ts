@@ -23,8 +23,8 @@ import {
  *
  * What it draws is a tint and a title, not a replacement: the body stays real
  * markdown on real lines, live-previewed by the same plugin as the rest of the
- * document. Only the `:::` markers are hidden, and only while the caret is off
- * their line — the same rule headings and emphasis already follow.
+ * document. The `:::` markers themselves are never drawn — syntax-edits keeps
+ * typing and deletion from landing inside them.
  */
 
 export const ADMONITIONS = [
@@ -184,13 +184,16 @@ function titleClass(block: ColonBlock): string {
   return block.kind === 'tab' ? 'cm-md-cb-tablabel' : 'cm-md-cb-title';
 }
 
-function selectionOnLine(state: EditorState, from: number, to: number): boolean {
-  return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
+interface Built {
+  decorations: DecorationSet;
+  hidden: DecorationSet;
 }
 
-function build(state: EditorState): DecorationSet {
+const NONE: Built = { decorations: Decoration.none, hidden: Decoration.none };
+
+function build(state: EditorState): Built {
   const blocks = parseColonBlocks(state.doc.toString().split('\n'));
-  if (blocks.length === 0) return Decoration.none;
+  if (blocks.length === 0) return NONE;
 
   // A line takes its colour from the innermost block holding it, so a tip
   // inside a note reads as a tip rather than as two overlapping tints.
@@ -207,29 +210,36 @@ function build(state: EditorState): DecorationSet {
   }
 
   const decos: Range<Decoration>[] = [];
+  const atoms: Range<Decoration>[] = [];
   /** Closing lines whose `:::` is hidden, and which therefore need no height. */
   const collapsed = new Set<number>();
 
+  const replace = (from: number, to: number, deco: Decoration) => {
+    const r = deco.range(from, to);
+    decos.push(r);
+    atoms.push(r);
+  };
+
   for (const block of blocks) {
     const open = state.doc.line(block.open + 1);
-    if (!selectionOnLine(state, open.from, open.to)) {
-      // With a title, only the `:::name ` in front of it goes — the title is
-      // ordinary text and stays editable. Without one, the whole marker is
-      // replaced by the name the renderer would have printed.
-      if (block.title) {
-        decos.push(hidden.range(open.from, open.from + block.titleAt));
-      } else {
-        decos.push(
-          Decoration.replace({
-            widget: new TitleWidget(titleClass(block), defaultTitle(block.name)),
-          }).range(open.from, open.to),
-        );
-      }
+    // With a title, only the `:::name ` in front of it goes — the title is
+    // ordinary text and stays editable. Without one, the whole marker is
+    // replaced by the name the renderer would have printed.
+    if (block.title) {
+      replace(open.from, open.from + block.titleAt, hidden);
+    } else {
+      replace(
+        open.from,
+        open.to,
+        Decoration.replace({
+          widget: new TitleWidget(titleClass(block), defaultTitle(block.name)),
+        }),
+      );
     }
 
     const close = state.doc.line(block.close + 1);
-    if (close.to > close.from && !selectionOnLine(state, close.from, close.to)) {
-      decos.push(hidden.range(close.from, close.to));
+    if (close.to > close.from) {
+      replace(close.from, close.to, hidden);
       collapsed.add(block.close);
     }
   }
@@ -246,7 +256,10 @@ function build(state: EditorState): DecorationSet {
     );
   }
 
-  return Decoration.set(decos, true);
+  return {
+    decorations: Decoration.set(decos, true),
+    hidden: Decoration.set(atoms, true),
+  };
 }
 
 /**
@@ -254,8 +267,11 @@ function build(state: EditorState): DecorationSet {
  * whole document rather than the viewport — a block's tint has to be right
  * before its opener has been scrolled into view — so they get a field.
  */
-export const colonBlockPreview: Extension = StateField.define<DecorationSet>({
+export const colonBlockPreview: Extension = StateField.define<Built>({
   create: build,
-  update: (decos, tr) => (tr.docChanged || tr.selection ? build(tr.state) : decos),
-  provide: (f) => EditorView.decorations.from(f),
+  update: (built, tr) => (tr.docChanged ? build(tr.state) : built),
+  provide: (f) => [
+    EditorView.decorations.from(f, (v) => v.decorations),
+    EditorView.atomicRanges.of((view) => view.state.field(f).hidden),
+  ],
 });

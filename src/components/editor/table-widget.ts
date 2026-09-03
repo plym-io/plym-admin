@@ -35,10 +35,10 @@ import { blockLead } from './format-commands';
  * from a state field (the viewport is measured before view plugins run), so
  * this ships its own field rather than living in live-preview's ViewPlugin.
  *
- * Put the caret inside a table's source and the widget steps aside so the raw
- * markdown can be edited. Clicking a cell doesn't move the caret (widget DOM
+ * The grid is the only face a table has in rich mode — the pipes never show,
+ * whatever the caret does. Clicking a cell doesn't move the caret (widget DOM
  * is uneditable as far as CodeMirror is concerned), so the grid stays put
- * while you type in it.
+ * while you type in it; the corner button removes the whole table.
  */
 
 /** Where to put focus after a rebuild — set by the edits that add cells. */
@@ -68,10 +68,6 @@ export function insertTable(view: EditorView, from: number, to: number) {
     selection: { anchor: from + text.length },
   });
   view.focus();
-}
-
-function selectionTouches(state: EditorState, from: number, to: number) {
-  return state.selection.ranges.some((r) => r.from <= to && r.to >= from);
 }
 
 /** The table node covering `pos`, looked up fresh so edits never use stale offsets. */
@@ -265,6 +261,20 @@ export class TableWidget extends WidgetType {
       edit((m) => addRow(m, m.rows.length));
     });
     dom.appendChild(addRowBtn);
+
+    // The pipes are out of reach in rich mode, so removing the table needs a
+    // control of its own.
+    const del = icon('Remove this table', '×', 'cm-md-tbtn cm-md-tdel');
+    del.addEventListener('click', () => {
+      const pos = view.posAtDOM(dom);
+      const range = tableRangeAt(view.state, pos);
+      if (!range) return;
+      const cut =
+        view.state.doc.sliceString(range.to, range.to + 1) === '\n' ? range.to + 1 : range.to;
+      view.dispatch({ changes: { from: range.from, to: cut } });
+      view.focus();
+    });
+    dom.appendChild(del);
   }
 }
 
@@ -274,7 +284,7 @@ export function tableIsRendered(
   from: number,
   to: number,
 ): boolean {
-  return !selectionTouches(state, from, to) && parseTable(state.doc.sliceString(from, to)) !== null;
+  return parseTable(state.doc.sliceString(from, to)) !== null;
 }
 
 /** Block nodes a table can nest inside — everything else is skipped whole. */
@@ -312,10 +322,8 @@ export const tablePreview: Extension = StateField.define<DecorationSet>({
   create: buildTables,
   update: (decos, tr) =>
     // The tree check matters: markdown further down the document finishes
-    // parsing in a transaction that changes neither doc nor selection.
-    tr.docChanged ||
-    tr.selection ||
-    syntaxTree(tr.state) !== syntaxTree(tr.startState)
+    // parsing in a transaction that doesn't change the doc.
+    tr.docChanged || syntaxTree(tr.state) !== syntaxTree(tr.startState)
       ? buildTables(tr.state)
       : decos,
   provide: (f) => EditorView.decorations.from(f),
