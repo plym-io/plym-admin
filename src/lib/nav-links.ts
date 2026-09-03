@@ -1,0 +1,194 @@
+/**
+ * The header and footer navigation a blog renders, as the Configure dialog
+ * holds it while it is being worked on.
+ *
+ * plym's own model is the contract mirrored here: every link carries a label
+ * and then *either* a destination *or* a submenu, never both and never
+ * neither, and a submenu is one level deep. Everything below exists to read
+ * that tree out of `GET /api/config`, hold it while it is half-typed, and name
+ * the row that isn't finished yet.
+ */
+
+export type NavSlot = 'header' | 'footer';
+
+export const NAV_SLOTS: NavSlot[] = ['header', 'footer'];
+
+/**
+ * Written out rather than CSS-capitalised: a tab whose accessible name is
+ * "footer" while the screen says "Footer" is two labels for one control.
+ */
+export const NAV_SLOT_LABEL: Record<NavSlot, string> = {
+  header: 'Header',
+  footer: 'Footer',
+};
+
+/** Which of the two things a row is, as the Link/Menu toggle sets it. */
+export type NavKind = 'link' | 'menu';
+
+/**
+ * A link as the builder holds it. Three differences from the file's shape, all
+ * so editing stays undoable: the row is identified, so it keeps focus and caret
+ * while the list around it is reordered; `kind` is stated rather than inferred
+ * from whether children happen to exist, so emptying a menu leaves a menu to
+ * fill in rather than silently becoming a link; and it keeps both a `url` and
+ * its `children` whichever kind is selected, so flipping the toggle back
+ * restores what was already typed instead of eating it.
+ */
+export interface NavDraft {
+  id: string;
+  kind: NavKind;
+  text: string;
+  url: string;
+  children: NavDraft[];
+}
+
+export type NavDrafts = Record<NavSlot, NavDraft[]>;
+
+/** A row, as `[index]` at the top level or `[index, childIndex]` beneath one. */
+export type NavPath = [number] | [number, number];
+
+// A counter rather than crypto.randomUUID(): the panel is served over plain
+// http on a LAN address often enough, and randomUUID only exists in a secure
+// context.
+let seq = 0;
+
+export function newDraft(): NavDraft {
+  seq += 1;
+  return { id: `nav-${seq}`, kind: 'link', text: '', url: '', children: [] };
+}
+
+function text(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+/**
+ * One link out of whatever `/api/config` returned. Grandchildren are dropped
+ * because neither the builder nor the renderer has a level to put them on; a
+ * config carrying them would not have loaded in the first place.
+ */
+function readLink(value: unknown, nested: boolean): NavDraft | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const children =
+    !nested && Array.isArray(raw.children)
+      ? raw.children.map((c) => readLink(c, true)).filter((c) => c !== null)
+      : [];
+  const draft: NavDraft = {
+    ...newDraft(),
+    kind: children.length ? 'menu' : 'link',
+    text: text(raw.text),
+    url: text(raw.url),
+    children,
+  };
+  return draft.text || draft.url || draft.children.length ? draft : null;
+}
+
+function readList(value: unknown): NavDraft[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((v) => readLink(v, false)).filter((v) => v !== null);
+}
+
+export function readDrafts(links: unknown): NavDrafts {
+  const raw = (links ?? {}) as Record<string, unknown>;
+  return { header: readList(raw.header), footer: readList(raw.footer) };
+}
+
+/** True for a row that opens a menu rather than going somewhere. */
+export function isMenu(item: NavDraft): boolean {
+  return item.kind === 'menu';
+}
+
+/* ── editing ──────────────────────────────────────────────────────────── */
+
+function mapAt(
+  items: NavDraft[],
+  path: NavPath,
+  fn: (item: NavDraft) => NavDraft | null,
+): NavDraft[] {
+  const [index, childIndex] = path;
+  return items.flatMap((item, i) => {
+    if (i !== index) return [item];
+    if (childIndex === undefined) {
+      const next = fn(item);
+      return next ? [next] : [];
+    }
+    return [{ ...item, children: mapAt(item.children, [childIndex], fn) }];
+  });
+}
+
+export function editAt(
+  items: NavDraft[],
+  path: NavPath,
+  patch: Partial<Omit<NavDraft, 'id'>>,
+): NavDraft[] {
+  return mapAt(items, path, (item) => ({ ...item, ...patch }));
+}
+
+export function removeAt(items: NavDraft[], path: NavPath): NavDraft[] {
+  return mapAt(items, path, () => null);
+}
+
+/**
+ * Lift a row out of its list and put it back at `to`, which is what a drop
+ * means. Not a swap: dragging the last row to the top has to leave the rows it
+ * passed in the order they were in, and a swap would jumble them.
+ */
+export function moveTo(items: NavDraft[], path: NavPath, to: number): NavDraft[] {
+  const [index, childIndex] = path;
+  if (childIndex !== undefined) {
+    return items.map((item, i) =>
+      i === index ? { ...item, children: moveTo(item.children, [childIndex], to) } : item,
+    );
+  }
+  if (index < 0 || index >= items.length || to < 0 || to >= items.length) return items;
+  const next = [...items];
+  next.splice(to, 0, ...next.splice(index, 1));
+  return next;
+}
+
+/** Reorder by one place — the keyboard's half of drag and drop. */
+export function moveAt(items: NavDraft[], path: NavPath, delta: -1 | 1): NavDraft[] {
+  const at = path.length === 2 ? path[1] : path[0];
+  return moveTo(items, path, at + delta);
+}
+
+/** Add a link to a row's menu. */
+export function addChild(items: NavDraft[], index: number): NavDraft[] {
+  return items.map((item, i) =>
+    i === index ? { ...item, children: [...item.children, newDraft()] } : item,
+  );
+}
+
+/**
+ * Flip a row between the two kinds. Becoming a menu with nothing under it
+ * seeds the first child, because an empty menu is the one shape that renders
+ * as neither a link nor a menu — the toggle should leave something to fill in,
+ * not an error to discover.
+ */
+export function setKind(items: NavDraft[], index: number, kind: NavKind): NavDraft[] {
+  return items.map((item, i) => {
+    if (i !== index) return item;
+    const children =
+      kind === 'menu' && !item.children.length ? [newDraft()] : item.children;
+    return { ...item, kind, children };
+  });
+}
+
+/* ── what is not finished yet ─────────────────────────────────────────── */
+
+export type NavFault = 'text' | 'url' | 'menu' | 'duplicate';
+
+/**
+ * What is wrong with one row, given the rows it sits beside.
+ *
+ * `duplicate` is a consequence of the config's shape rather than of the link:
+ * a navigation is a block keyed by name, so two siblings sharing one label
+ * cannot both exist — one of them is the entry, and the other is gone.
+ */
+export function faultOf(item: NavDraft, siblings: NavDraft[] = []): NavFault | null {
+  const label = item.text.trim();
+  if (!label) return 'text';
+  if (siblings.some((s) => s !== item && s.text.trim() === label)) return 'duplicate';
+  if (isMenu(item)) return item.children.length ? null : 'menu';
+  return item.url.trim() ? null : 'url';
+}
