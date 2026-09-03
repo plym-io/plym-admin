@@ -61,6 +61,9 @@ const URL_MARK = mark('cm-md-url');
 
 const BULLET = /^[-*+]$/;
 
+/** Hashes alone on a line — a heading only until the next letter kills it. */
+const BARE_HEADING = /^ {0,3}#{1,6}$/;
+
 /** `[label](…` — how far the visible words of a link run. */
 const LABEL = /^\[([^\]]*)\]\(/;
 
@@ -170,6 +173,13 @@ function build(view: EditorView): Built {
 
         const heading = HEADING.exec(name) ?? SETEXT.exec(name);
         if (heading) {
+          // `##` with no space after it parses as a heading, but one more
+          // letter un-parses it (`##hello` is plain text) — so the hashes
+          // stay visible and the line unstyled until the space makes it a
+          // heading for real. Typing `# ` converts, the way Notion does.
+          if (HEADING.test(name) && BARE_HEADING.test(state.doc.lineAt(node.from).text)) {
+            return;
+          }
           eachLine(node.from, node.to, line(`cm-md-h${heading[1]}`));
           return;
         }
@@ -214,7 +224,12 @@ function build(view: EditorView): Built {
           case 'ListMark': {
             const src = state.doc.sliceString(node.from, node.to);
             // A bullet reads as a bullet; "1." is already what it should be.
-            if (BULLET.test(src)) {
+            // A bare `-` isn't a bullet until its space arrives — `-hello`
+            // is plain text, so drawing the dash as a dot would lie.
+            if (
+              BULLET.test(src) &&
+              /[ \t]/.test(state.doc.sliceString(node.to, node.to + 1))
+            ) {
               replace(node.from, node.to, Decoration.replace({ widget: new BulletWidget() }));
             } else {
               decos.push(LIST_MARK.range(node.from, node.to));
@@ -263,6 +278,16 @@ function build(view: EditorView): Built {
         // A Link's own marks were hidden by the Link case; what reaches here
         // is an autolink's angle brackets.
         if (name === 'LinkMark' && parent?.name === 'Link') return;
+        // The hashes of a heading still missing its space stay visible —
+        // the line check above left the whole construct undrawn.
+        if (
+          name === 'HeaderMark' &&
+          parent &&
+          HEADING.test(parent.name) &&
+          state.doc.sliceString(node.to, node.to + 1) !== ' '
+        ) {
+          return;
+        }
 
         // `## ` — the separating space goes with the hashes, or the heading
         // would render with a leading gap.
