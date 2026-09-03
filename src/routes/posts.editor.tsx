@@ -838,7 +838,12 @@ function SaveLine({
         <>
           <span className="flex items-center gap-1.5">
             Autosave
-            <Toggle checked={autosaveOn} onChange={onAutosave} label="Autosave" />
+            <Toggle
+              checked={autosaveOn}
+              onChange={onAutosave}
+              label="Autosave"
+              size="sm"
+            />
           </span>
           <span aria-hidden className="text-border-strong">
             ·
