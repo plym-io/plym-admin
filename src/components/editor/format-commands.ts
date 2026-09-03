@@ -93,6 +93,77 @@ export function insertLink(state: EditorState): TransactionSpec {
   });
 }
 
+export type BlockType = 'p' | 'h1' | 'h2' | 'h3' | 'quote' | 'bullets' | 'numbers';
+
+/** The line's markers, innermost last — quote chain, then one list or heading. */
+const PREFIX = /^((?: {0,3}> ?)*)(\s*(?:[-*+][ \t]+|\d+[.)][ \t]+|#{1,6} ))?/;
+
+/** What the line at `pos` reads as, for the toolbar's style dropdown. */
+export function blockTypeAt(state: EditorState, pos: number): BlockType {
+  const text = state.doc.lineAt(pos).text;
+  const m = PREFIX.exec(text);
+  if (!m) return 'p';
+  const marker = (m[2] ?? '').trim();
+  if (/^#{1,3}$/.test(marker)) return `h${marker.length}` as BlockType;
+  if (/^#{4,6}$/.test(marker)) return 'h3';
+  if (/^[-*+]$/.test(marker)) return 'bullets';
+  if (marker) return 'numbers';
+  return m[1] ? 'quote' : 'p';
+}
+
+const BLOCK_MARKER: Record<Exclude<BlockType, 'p' | 'quote' | 'numbers'>, string> = {
+  h1: '# ',
+  h2: '## ',
+  h3: '### ',
+  bullets: '- ',
+};
+
+/**
+ * Give every line the selection touches the asked-for shape — the toolbar's
+ * dropdown and list buttons. Quotes and lists toggle; a heading applied
+ * twice stays a heading, the way a style dropdown reads.
+ */
+export function setBlockType(state: EditorState, type: BlockType): TransactionSpec {
+  const { from, to } = state.selection.main;
+  const first = state.doc.lineAt(from).number;
+  const last = state.doc.lineAt(to).number;
+
+  const lines = [];
+  for (let n = first; n <= last; n++) lines.push(state.doc.line(n));
+  const toggling =
+    (type === 'quote' || type === 'bullets' || type === 'numbers') &&
+    lines.every((l) => l.text.trim() === '' || blockTypeAt(state, l.from) === type);
+
+  const changes = [];
+  let item = 1;
+  for (const line of lines) {
+    if (line.text.trim() === '' && lines.length > 1) continue;
+    const m = PREFIX.exec(line.text);
+    const quote = m?.[1] ?? '';
+    const marker = m?.[2] ?? '';
+    const markerFrom = line.from + quote.length;
+    if (type === 'quote') {
+      changes.push(
+        toggling
+          ? { from: line.from, to: line.from + quote.length }
+          : { from: line.from, insert: '> ' },
+      );
+      continue;
+    }
+    const insert = toggling
+      ? ''
+      : type === 'p'
+        ? ''
+        : type === 'numbers'
+          ? `${item++}. `
+          : BLOCK_MARKER[type];
+    if (marker || insert) {
+      changes.push({ from: markerFrom, to: markerFrom + marker.length, insert });
+    }
+  }
+  return { changes, userEvent: 'input' };
+}
+
 /**
  * The newlines a block construct needs in front of it to start its own block
  * at `pos`. Markdown keeps reading the paragraph you are in otherwise, so a

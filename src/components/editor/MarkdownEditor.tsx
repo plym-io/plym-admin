@@ -19,7 +19,16 @@ import { filterCommands, type SlashContext } from './slash-commands';
 import { FormatToolbar, type EditorActions } from './FormatToolbar';
 import { SelectionMenu } from './SelectionMenu';
 import { LinkPopover } from './LinkPopover';
-import { BOLD, ITALIC, insertLink, run, toggleInline } from './format-commands';
+import {
+  BOLD,
+  ITALIC,
+  blockTypeAt,
+  insertLink,
+  run,
+  setBlockType,
+  toggleInline,
+  type BlockType,
+} from './format-commands';
 import { linkAt, unlinkAt } from './syntax-edits';
 import { insertTable } from './table-widget';
 import { richPaste } from './rich-paste';
@@ -78,6 +87,7 @@ export function MarkdownEditor({
   const [link, setLink] = useState<LinkState | null>(null);
   const linkRef = useRef<LinkState | null>(null);
   const linkFocus = useRef(false);
+  const [blockType, setBlockTypeState] = useState<BlockType>('p');
 
   useEffect(() => {
     linkRef.current = link;
@@ -317,6 +327,10 @@ export function MarkdownEditor({
       inline: (mark) => {
         const view = getView();
         if (view) run(view, toggleInline(view.state, mark));
+      },
+      block: (type) => {
+        const view = getView();
+        if (view) run(view, setBlockType(view.state, type));
       },
       link: () => {
         const view = getView();
@@ -632,6 +646,7 @@ export function MarkdownEditor({
         if (u.docChanged || u.selectionSet || u.focusChanged || u.geometryChanged) {
           detectSlash(u.view);
           detectLink(u.view);
+          setBlockTypeState(blockTypeAt(u.view.state, u.view.state.selection.main.head));
         }
       }),
       CMView.domEventHandlers({
@@ -737,7 +752,7 @@ export function MarkdownEditor({
         }
       }}
     >
-      <FormatToolbar actions={actions} />
+      <FormatToolbar actions={actions} blockType={blockType} />
 
       <input
         ref={fileInput}
