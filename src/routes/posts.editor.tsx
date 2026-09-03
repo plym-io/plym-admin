@@ -35,6 +35,7 @@ import { AnimatedNumber } from '@/components/ui/animated-number';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Toggle } from '@/components/ui/toggle';
 import { cn } from '@/lib/classnames';
 
 interface Draft {
@@ -344,6 +345,42 @@ export default function PostEditor() {
 
   const autosave = useAutosave(persist, 1000);
 
+  // ---- autosave toggle ------------------------------------------------
+  // On for a draft, off for a published post: autosaving a draft loses
+  // nothing, autosaving a published post ships every half-typed sentence to
+  // readers. The default follows the status; the switch is the override.
+  const [autosaveOn, setAutosaveOn] = useState(true);
+  const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+
+  const schedule = autosave.schedule;
+  const setAutosave = useCallback(
+    (on: boolean) => {
+      setAutosaveOn(on);
+      // Edits made while it was off are picked up the moment it comes back.
+      if (on && dirtyRef.current) {
+        schedule(draftRef.current);
+        setDirty(false);
+      }
+    },
+    // `schedule` is the hook's stable callback — the autosave object itself
+    // is fresh every render and would re-arm the status effect below.
+    [schedule],
+  );
+
+  useEffect(() => {
+    setAutosave(draft.status === 'draft');
+  }, [draft.status, setAutosave]);
+
+  // With autosave off, closing the tab is the one way to lose work — warn.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
   // Schedule a save whenever content-ish fields change.
   const update = useCallback(
     (patch: Partial<Draft>) => {
@@ -354,9 +391,10 @@ export default function PostEditor() {
       }
       draftRef.current = next;
       setDraft(next);
-      autosave.schedule(next);
+      if (autosaveOn) autosave.schedule(next);
+      else setDirty(true);
     },
-    [autosave, slugTouched],
+    [autosave, autosaveOn, slugTouched],
   );
 
   // ---- slug ----------------------------------------------------------
@@ -371,6 +409,15 @@ export default function PostEditor() {
       if (postIdRef.current === null) return;
       setStatusPending(true);
       try {
+        // Publish what is on screen: edits made with autosave off are saved
+        // first, and a debounce still in flight is flushed. An untouched
+        // post sends nothing extra.
+        if (dirtyRef.current) {
+          await autosave.saveNow(draftRef.current);
+          setDirty(false);
+        } else {
+          autosave.flush();
+        }
         const updated = await call(
           api.PATCH('/api/posts/{post_id}', {
             params: { path: { post_id: postIdRef.current } },
@@ -400,14 +447,13 @@ export default function PostEditor() {
         setStatusPending(false);
       }
     },
-    [draft.status, adoptPublishedAt],
+    [draft.status, adoptPublishedAt, autosave],
   );
 
-  // ---- explicit save (⌘S) — flush autosave then refresh rendered file -
+  // ---- explicit save (⌘S) — save now, then refresh the rendered file --
   const saveAndRefresh = useCallback(async () => {
-    autosave.flush();
-    // Give the flush a tick to set the id on first save.
-    await new Promise((r) => setTimeout(r, 50));
+    await autosave.saveNow(draftRef.current);
+    setDirty(false);
     if (postIdRef.current === null) {
       toast.message('Add a title to start saving.');
       return;
@@ -638,6 +684,9 @@ export default function PostEditor() {
           <SaveLine
             state={autosave.state}
             savedAt={autosave.savedAt}
+            autosaveOn={autosaveOn}
+            onAutosave={setAutosave}
+            dirty={dirty}
             minimal={focusMode}
           />
         </div>
@@ -748,11 +797,18 @@ function ModeToggle({
 function SaveLine({
   state,
   savedAt,
+  autosaveOn,
+  onAutosave,
+  dirty,
   minimal,
 }: {
   state: ReturnType<typeof useAutosave>['state'];
   savedAt: Date | null;
-  /** Drop the keyboard hint — focus mode keeps only the writing feedback. */
+  autosaveOn: boolean;
+  onAutosave: (on: boolean) => void;
+  /** Edits made while autosave is off, still only in the editor. */
+  dirty: boolean;
+  /** Drop the controls — focus mode keeps only the writing feedback. */
   minimal?: boolean;
 }) {
   // Re-render every 5s so "Saved Ns ago" stays honest.
@@ -766,14 +822,29 @@ function SaveLine({
       ? 'Saving…'
       : state === 'error'
         ? 'Save failed — retrying on next change'
-        : savedAt
-          ? `Saved ${relativeTime(savedAt)}`
-          : 'Draft autosaves as you type';
+        : dirty
+          ? 'Unsaved changes'
+          : savedAt
+            ? `Saved ${relativeTime(savedAt)}`
+            : autosaveOn
+              ? 'Draft autosaves as you type'
+              : 'Autosave is off';
   return (
     <div
       aria-live="polite"
       className="flex h-9 shrink-0 items-center gap-2 border-t border-border px-8 text-xs text-fg-subtle"
     >
+      {!minimal && (
+        <>
+          <span className="flex items-center gap-1.5">
+            Autosave
+            <Toggle checked={autosaveOn} onChange={onAutosave} label="Autosave" />
+          </span>
+          <span aria-hidden className="text-border-strong">
+            ·
+          </span>
+        </>
+      )}
       <motion.span
         key={state}
         initial={{ opacity: 0.4 }}
@@ -783,12 +854,18 @@ function SaveLine({
         {state === 'saving' && (
           <ArrowsClockwise size={12} className="animate-spin" />
         )}
-        {state === 'saved' && <CloudCheck size={13} className="text-success" />}
+        {state === 'saved' && !dirty && (
+          <CloudCheck size={13} className="text-success" />
+        )}
+        {dirty && state !== 'saving' && (
+          <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+        )}
         {label}
       </motion.span>
       {!minimal && (
         <span className="ml-auto">
-          Press <Kbd keys="mod+s" /> to refresh the rendered file
+          Press <Kbd keys="mod+s" />{' '}
+          {autosaveOn ? 'to refresh the rendered file' : 'to save'}
         </span>
       )}
     </div>

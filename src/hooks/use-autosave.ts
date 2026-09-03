@@ -11,6 +11,8 @@ interface AutosaveResult {
   schedule: (payload: unknown) => void;
   /** Force an immediate save of whatever is pending. */
   flush: () => void;
+  /** Save this payload right now — the manual-save path when autosave is off. */
+  saveNow: (payload: unknown) => Promise<void>;
 }
 
 /**
@@ -49,6 +51,15 @@ export function useAutosave(
     [debounced],
   );
 
+  const saveNow = useCallback(
+    (payload: unknown) => {
+      // A pending debounce holds an older payload — this one supersedes it.
+      debounced.cancel();
+      return run(payload);
+    },
+    [debounced, run],
+  );
+
   // Save on unmount / tab hide so nothing is lost.
   useEffect(() => {
     const onHide = () => debounced.flush();
@@ -61,5 +72,5 @@ export function useAutosave(
     };
   }, [debounced]);
 
-  return { state, savedAt, schedule, flush: debounced.flush };
+  return { state, savedAt, schedule, flush: debounced.flush, saveNow };
 }
