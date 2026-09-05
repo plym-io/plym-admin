@@ -61,21 +61,29 @@ export function PostRow({
     <motion.div
       layout
       initial={{ opacity: 0 }}
-      // Archived posts read as retired — recessed, like deactivated users.
-      animate={{ opacity: isArchived ? 0.6 : 1 }}
+      animate={{ opacity: 1 }}
       exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       onClick={() => navigate(`/posts/${post.id}`)}
-      className="group relative flex cursor-pointer items-center gap-4 rounded-lg border border-transparent px-3 py-3 transition-colors hover:border-border hover:bg-bg-subtle"
+      // The row must not carry opacity itself: that would start a stacking
+      // context (trapping the z-50 popovers under later rows) and dim an open
+      // popover with it. Content dims instead, and an open popover lifts the
+      // row above its siblings.
+      className="group relative flex cursor-pointer items-center gap-4 rounded-lg border border-transparent px-3 py-3 transition-colors hover:border-border hover:bg-bg-subtle has-[[aria-expanded=true]]:z-10"
     >
       {/* Status strip */}
       <span
-        className={cn('h-9 w-1 shrink-0 rounded-full', meta.strip)}
+        className={cn(
+          'h-9 w-1 shrink-0 rounded-full',
+          meta.strip,
+          isArchived && 'opacity-60',
+        )}
         aria-hidden
       />
 
-      {/* Title + excerpt */}
-      <div className="min-w-0 flex-1">
+      {/* Title + excerpt. Archived posts read as retired — recessed, like
+          deactivated users. */}
+      <div className={cn('min-w-0 flex-1', isArchived && 'opacity-60')}>
         <p className="flex items-center gap-1.5 text-[15px] font-semibold leading-tight text-fg">
           <span className="min-w-0 truncate">{post.title}</span>
           {post.canonical_url && (
@@ -108,7 +116,12 @@ export function PostRow({
       </div>
 
       {/* Meta */}
-      <div className="hidden shrink-0 flex-col items-end text-right text-xs text-fg-subtle tnum sm:flex">
+      <div
+        className={cn(
+          'hidden shrink-0 flex-col items-end text-right text-xs text-fg-subtle tnum sm:flex',
+          isArchived && 'opacity-60',
+        )}
+      >
         <span>{shortDate(post.updated_at)}</span>
         <span>{post.reading_time} min read</span>
       </div>
