@@ -88,8 +88,14 @@ export default function PostsList() {
   }, [filter, debouncedQuery]);
 
   // Server already filtered + ordered by updated_at; we re-group by status so
-  // published rises above drafts in the "All" view (BRD §6.3).
-  const visible = useMemo(() => [...list].sort(sortPosts), [list]);
+  // published rises above drafts in the "All" view (BRD §6.3). Archived posts
+  // only show under their own filter — the API has no "all but archived", so
+  // "All" drops them here.
+  const visible = useMemo(() => {
+    const scoped =
+      filter === 'all' ? list.filter((p) => p.status !== 'archived') : [...list];
+    return scoped.sort(sortPosts);
+  }, [list, filter]);
 
   const hasMore = total !== null && loadedCount < total;
 
