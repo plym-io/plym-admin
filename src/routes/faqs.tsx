@@ -76,7 +76,8 @@ export default function Faqs() {
           }
         />
       ) : (
-        <div className="mt-6 divide-y divide-border overflow-hidden rounded-xl border border-border bg-bg shadow-xs">
+        /* No overflow-hidden: it would clip the last row's confirm popover. */
+        <div className="mt-6 divide-y divide-border rounded-xl border border-border bg-bg shadow-xs">
           {list.map((f) => (
             <div key={f.id} className="group flex items-start gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">

@@ -175,12 +175,14 @@ export default function Users() {
             : 'No active users.'}
         </p>
       ) : (
-        <Panel flush className="mt-4 divide-y divide-border overflow-hidden">
+        /* No overflow-hidden: it would clip the last row's confirm popover.
+           Rows round their own end corners so the hover tint stays inside. */
+        <Panel flush className="mt-4 divide-y divide-border">
           {visible.map((u) => (
             <div
               key={u.id}
               className={cn(
-                'group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-subtle',
+                'group flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-bg-subtle',
                 !u.is_active && 'opacity-60',
               )}
             >
