@@ -18,7 +18,18 @@ import { MediaPicker } from './MediaPicker';
 import { filterCommands, type SlashContext } from './slash-commands';
 import { FormatToolbar, type EditorActions } from './FormatToolbar';
 import { SelectionMenu } from './SelectionMenu';
-import { BOLD, ITALIC, insertLink, run, toggleInline } from './format-commands';
+import { LinkPopover } from './LinkPopover';
+import {
+  BOLD,
+  ITALIC,
+  blockTypeAt,
+  insertLink,
+  run,
+  setBlockType,
+  toggleInline,
+  type BlockType,
+} from './format-commands';
+import { linkAt, unlinkAt } from './syntax-edits';
 import { insertTable } from './table-widget';
 import { richPaste } from './rich-paste';
 
@@ -41,6 +52,12 @@ interface SlashState {
   from: number;
   to: number;
   query: string;
+  coords: { left: number; top: number; bottom: number };
+}
+
+interface LinkState {
+  from: number;
+  url: string;
   coords: { left: number; top: number; bottom: number };
 }
 
@@ -67,6 +84,14 @@ export function MarkdownEditor({
   const [contextAt, setContextAt] = useState<{ x: number; y: number } | null>(
     null,
   );
+  const [link, setLink] = useState<LinkState | null>(null);
+  const linkRef = useRef<LinkState | null>(null);
+  const linkFocus = useRef(false);
+  const [blockType, setBlockTypeState] = useState<BlockType>('p');
+
+  useEffect(() => {
+    linkRef.current = link;
+  }, [link]);
 
   const getView = useCallback(
     () => internalRef.current?.view ?? editorRef?.current?.view ?? null,
@@ -115,6 +140,110 @@ export function MarkdownEditor({
       coords: { left: coords.left, top: coords.top, bottom: coords.bottom },
     });
   }, []);
+
+  // ---- link popover --------------------------------------------------
+  const detectLink = useCallback(
+    (view: EditorView) => {
+      if (mode !== 'wysiwyg') return;
+      const sel = view.state.selection.main;
+      const focused = view.hasFocus || linkFocus.current;
+      const info =
+        focused && sel.empty ? linkAt(view.state, sel.head) : null;
+      if (!info || sel.head <= info.from || sel.head >= info.to) {
+        // A link abandoned before it got a URL doesn't stay in the document
+        // as invisible markup — the words go back to being words.
+        const prev = linkRef.current;
+        if (prev && prev.url === '') {
+          setTimeout(() => {
+            const fresh = linkAt(view.state, prev.from + 1);
+            if (!fresh) return;
+            if (view.state.sliceDoc(fresh.urlFrom, fresh.urlTo) !== '') return;
+            const spec = unlinkAt(view.state, fresh.from + 1);
+            if (spec) view.dispatch(spec);
+          }, 0);
+        }
+        setLink(null);
+        return;
+      }
+      // The `[` itself is a replaced range with no screen position — anchor
+      // on the label's first visible character, falling back to the caret.
+      const coords =
+        view.coordsAtPos(info.from + 1) ?? view.coordsAtPos(sel.head);
+      if (!coords) {
+        setLink(null);
+        return;
+      }
+      setLink({
+        from: info.from,
+        url: view.state.sliceDoc(info.urlFrom, info.urlTo),
+        coords: { left: coords.left, top: coords.top, bottom: coords.bottom },
+      });
+    },
+    [mode],
+  );
+
+  /** The link under the popover, located fresh — doc positions move. */
+  const currentLink = useCallback(() => {
+    const view = getView();
+    if (!view || !link) return null;
+    const info = linkAt(view.state, link.from + 1);
+    return view && info ? { view, info } : null;
+  }, [getView, link]);
+
+  const setLinkUrl = useCallback(
+    (url: string) => {
+      const found = currentLink();
+      if (!found) return;
+      const { view, info } = found;
+      view.dispatch({
+        changes: { from: info.urlFrom, to: info.urlTo, insert: url },
+      });
+    },
+    [currentLink],
+  );
+
+  const unlink = useCallback(() => {
+    const found = currentLink();
+    if (!found) return;
+    const { view, info } = found;
+    const spec = unlinkAt(view.state, info.from + 1);
+    setLink(null);
+    if (spec) view.dispatch(spec);
+    view.focus();
+  }, [currentLink]);
+
+  /**
+   * Leave the popover tidy: a link still missing its URL unlinks itself, a
+   * pasted URL with no words becomes its own label, and — when the writer
+   * asked to be done rather than clicking away — the caret returns to the
+   * prose just past the link.
+   */
+  const closeLink = useCallback(
+    (refocus: boolean) => {
+      const found = currentLink();
+      setLink(null);
+      if (!found) return;
+      const { view, info } = found;
+      const url = view.state.sliceDoc(info.urlFrom, info.urlTo);
+      if (!url) {
+        const spec = unlinkAt(view.state, info.from + 1);
+        if (spec) view.dispatch(spec);
+      } else if (!info.label) {
+        view.dispatch({
+          changes: { from: info.from + 1, to: info.from + 1, insert: url },
+          selection: { anchor: info.to + url.length },
+        });
+      } else if (refocus) {
+        view.dispatch({ selection: { anchor: info.to } });
+      }
+      if (refocus) view.focus();
+    },
+    [currentLink],
+  );
+
+  const openLink = useCallback(() => {
+    if (link?.url) window.open(link.url, '_blank', 'noopener');
+  }, [link]);
 
   const filtered = useMemo(
     () => (slash ? filterCommands(slash.query) : []),
@@ -198,6 +327,10 @@ export function MarkdownEditor({
       inline: (mark) => {
         const view = getView();
         if (view) run(view, toggleInline(view.state, mark));
+      },
+      block: (type) => {
+        const view = getView();
+        if (view) run(view, setBlockType(view.state, type));
       },
       link: () => {
         const view = getView();
@@ -383,11 +516,17 @@ export function MarkdownEditor({
           color: 'var(--color-fg-subtle)',
           borderBottom: '1px solid var(--color-border-strong)',
         },
+        // Padding on the wrap, not margin on the img: the widget is measured
+        // by its rect, which a margin escapes — see .cm-md-table-wrap.
+        '.cm-md-image': {
+          display: 'inline-block',
+          maxWidth: '100%',
+          padding: '0.4em 0',
+        },
         '.cm-md-image img': {
           display: 'block',
           maxWidth: '100%',
           borderRadius: 'var(--radius-lg, 8px)',
-          margin: '0.4em 0',
         },
 
         // ---- key takeaways ----
@@ -506,12 +645,16 @@ export function MarkdownEditor({
       CMView.updateListener.of((u) => {
         if (u.docChanged || u.selectionSet || u.focusChanged || u.geometryChanged) {
           detectSlash(u.view);
+          detectLink(u.view);
+          setBlockTypeState(blockTypeAt(u.view.state, u.view.state.selection.main.head));
         }
       }),
       CMView.domEventHandlers({
         scroll: (_e, view) => {
-          // Slash menu is anchored to the caret — close it on scroll.
+          // Slash menu and link popover are anchored to the caret — close
+          // them on scroll.
           setSlash(null);
+          setLink(null);
           if (!onScroll) return false;
           const el = view.scrollDOM;
           const max = el.scrollHeight - el.clientHeight;
@@ -547,7 +690,7 @@ export function MarkdownEditor({
         ]),
       ),
     ],
-    [detectSlash, onScroll, mode],
+    [detectSlash, detectLink, onScroll, mode],
   );
 
   // ---- drag & drop ---------------------------------------------------
@@ -609,7 +752,7 @@ export function MarkdownEditor({
         }
       }}
     >
-      <FormatToolbar actions={actions} />
+      <FormatToolbar actions={actions} blockType={blockType} />
 
       <input
         ref={fileInput}
@@ -660,6 +803,19 @@ export function MarkdownEditor({
           y={contextAt.y}
           actions={actions}
           onClose={() => setContextAt(null)}
+        />
+      )}
+
+      {link && (
+        <LinkPopover
+          coords={link.coords}
+          url={link.url}
+          autoFocus={link.url === ''}
+          onUrlChange={setLinkUrl}
+          onOpen={openLink}
+          onUnlink={unlink}
+          onDone={closeLink}
+          focusWithin={linkFocus}
         />
       )}
 

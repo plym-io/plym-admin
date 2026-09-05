@@ -225,8 +225,9 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     hint: 'Insert a link',
     keywords: ['link', 'url', 'href', 'anchor'],
     icon: LinkSimple,
-    // Caret sits inside the [text] so the label can be typed immediately.
-    run: (c) => replaceRange(c, '[](url)', 1),
+    // Caret sits inside the [text] so the label can be typed immediately;
+    // the URL popover opens over it for the target.
+    run: (c) => replaceRange(c, '[]()', 1),
   },
   {
     id: 'media',

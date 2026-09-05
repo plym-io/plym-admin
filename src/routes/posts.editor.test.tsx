@@ -94,6 +94,10 @@ describe('post editor — published_at', () => {
     await waitFor(() => expect(patchBodies()).toHaveLength(1));
     expect(patchBodies()[0]).toEqual({ status: 'published' });
 
+    // Publishing switches autosave off; put it back on — this test is about
+    // the autosave that follows the publish stamp.
+    await user.click(screen.getByRole('switch', { name: /autosave/i }));
+
     // Keep writing. This is the save that used to undo the publish date.
     await user.type(screen.getByPlaceholderText('Title'), '!');
     await waitFor(() => expect(patchBodies().length).toBeGreaterThan(1), { timeout: 4000 });
@@ -102,6 +106,20 @@ describe('post editor — published_at', () => {
     // the stamped date. Sending null is the regression.
     const autosave = patchBodies()[patchBodies().length - 1];
     expect('published_at' in autosave ? autosave.published_at : STAMPED).toBe(STAMPED);
+  });
+
+  it('stops autosaving once the post is published', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await screen.findByTestId('markdown-editor');
+
+    await user.click(screen.getByRole('radio', { name: /published/i }));
+    await waitFor(() => expect(patchBodies()).toHaveLength(1));
+
+    await user.type(screen.getByPlaceholderText('Title'), '!');
+    await new Promise((r) => setTimeout(r, 1600));
+    expect(patchBodies()).toHaveLength(1);
+    expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
   });
 
   it('omits published_at from a save that did not touch the date', async () => {

@@ -261,9 +261,24 @@
  * by React, so it can't use utility classes.
  * ------------------------------------------------------------------ */
 .cm-md-table-wrap {
-  margin: 0.8em 0;
+  position: relative;
+  /* Padding, not margin: CodeMirror measures a block widget by its rect,
+     which excludes margins — a margin here shifts every line below the
+     table out of the editor's coordinate map, and clicks land off-target. */
+  padding: 0.8em 0;
   font-family: var(--font-editor);
   font-size: 0.92em;
+}
+.cm-md-tdel {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  opacity: 0;
+}
+.cm-md-table-wrap:hover .cm-md-tdel {
+  opacity: 1;
 }
 .cm-md-table-el {
   border-collapse: collapse;
